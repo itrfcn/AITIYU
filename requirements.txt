@@ -1,0 +1,5 @@
+# AITIYU项目依赖
+# 图像处理库
+Pillow
+# HTTP请求库
+requests

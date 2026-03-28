@@ -2,7 +2,6 @@
 multi_user.json
 user.json
 
-
 # Python编译文件
 *.pyc
 __pycache__/

@@ -19,6 +19,9 @@ import os
 import random
 import string
 import argparse
+import hashlib
+import time
+
 
 # ========================== 配置参数 ==========================
 # 调试模式（True=打印详细信息，False=只打印关键信息）
@@ -147,19 +150,25 @@ def get_oss_key(cookies=None):
         print(f"[ERROR] 获取OSS密钥失败: {e}")
         return None
 
-# 定义生成随机文件名的函数
+# 生成唯一文件名的函数
 def generate_random_filename(file_extension):
     """
-    生成随机文件名，格式：19位随机大小写字母和数字 + 原扩展名
-    示例：77a6f1774677362BRGs.png
+    生成随机文件名，格式：哈希值 + 原扩展名
+    示例：a1b2c3d4e5f6g7h8i9j0.png
     """
-    # 生成19位随机大小写字母和数字
-    random_name = ''.join(random.choices(string.ascii_letters + string.digits, k=19))
     
-    # 组合成完整的随机文件名
-    random_filename = f"{random_name}{file_extension}"
+    # 生成包含时间戳和随机字符串的哈希值
+    timestamp = str(time.time())
+    random_str = ''.join(random.choices(string.ascii_letters + string.digits, k=10))
+    hash_input = f"{timestamp}{random_str}".encode('utf-8')
     
-    return random_filename
+    # 使用SHA-256哈希算法生成文件名
+    hash_name = hashlib.sha256(hash_input).hexdigest()[:19]  # 取前19位
+    
+    # 组合成完整的哈希文件名
+    hash_filename = f"{hash_name}{file_extension}"
+    
+    return hash_filename
 
 # 定义上传图片到OSS的函数
 def upload_image_to_oss(oss_config, image_path):

@@ -16,7 +16,7 @@ AuthorBlog: https://blog.itrf.cn
 使用方法：
 
 1. 使用命令行参数（单用户）：
-   python run_workflow.py -c "YOUR_COOKIE" -n "备注" --username "keep用户名"
+   python run_workflow.py -c "YOUR_COOKIE" -n "备注" --username "keep用户名" --avatar "头像路径或URL"
 
 2. 使用单用户JSON配置文件：
    python run_workflow.py --json user_config.json
@@ -24,8 +24,6 @@ AuthorBlog: https://blog.itrf.cn
 3. 使用多用户JSON配置文件：
    python run_workflow.py --json config_multi_user.json
 
-4. 混合使用（命令行参数优先，仅影响第一个用户）：
-   python run_workflow.py --json config_multi_user.json -c "OVERRIDE_COOKIE"
 
 """
 
@@ -81,6 +79,8 @@ def parse_args():
                       help="提交备注")
     parser.add_argument("--username", type=str, default="", 
                       help="Keep用户名")
+    parser.add_argument("--avatar", type=str, 
+                      help="头像图片路径或URL")
     
     return parser.parse_args()
 
@@ -159,6 +159,8 @@ def get_config_from_args(args):
             user_config['name'] = args.name
         if args.username:
             user_config['username'] = args.username
+        if args.avatar:
+            user_config['avatar'] = args.avatar
         
         # 检查必要的参数
         if 'cookie' not in user_config or 'name' not in user_config:
@@ -203,13 +205,14 @@ def get_config_from_args(args):
         return valid_users
 
 
-def run_keepsultan(output_dir="images", username=""):
+def run_keepsultan(output_dir="images", username="", avatar=None):
     """
     执行KeepSultan.py生成跑步截图
     
     参数:
         output_dir: 输出目录
         username: Keep用户名
+        avatar: 头像图片路径或URL（可选）
         
     返回:
         str: 生成的图片路径
@@ -222,6 +225,19 @@ def run_keepsultan(output_dir="images", username=""):
         
         logger.info(f"执行KeepSultan生成图片: {output_path}")
         
+        # 随机选择地图图片
+        import random
+        import glob
+        
+        # 扫描src/map目录中的所有图片文件
+        map_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "src", "map")
+        map_files = glob.glob(os.path.join(map_dir, "*.png")) + glob.glob(os.path.join(map_dir, "*.jpg")) + glob.glob(os.path.join(map_dir, "*.jpeg"))
+        
+        # 随机选择一张地图图片，如果没有则使用None（使用默认值）
+        selected_map = random.choice(map_files) if map_files else None
+        if selected_map:
+            logger.info(f"随机选择地图图片: {selected_map}")
+        
         # 使用KeepSultan模块直接生成图片
         try:
             # 构建参数命名空间
@@ -230,8 +246,8 @@ def run_keepsultan(output_dir="images", username=""):
                 config="config.json",
                 save=output_path,
                 template=None,
-                map=None,
-                avatar=None,
+                map=selected_map,
+                avatar=avatar,
                 username=username,
                 date=None,
                 end_time=None,
@@ -356,7 +372,8 @@ def main():
         try:
             # 步骤1: 生成跑步截图
             image_path = run_keepsultan(
-                username=user_config['username']
+                username=user_config['username'],
+                avatar=user_config.get('avatar')
             )
             
             if not image_path:

@@ -46,17 +46,20 @@ def import_module(name, file_path):
     spec.loader.exec_module(module)
     return module
 
+# 配置日志
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
 # 导入需要的模块
 try:
     KeepSultan = import_module("KeepSultan", "KeepSultan.py")
     integrated_script = import_module("integrated_script", "integrated_script.py")
+    # 导入map模块用于生成地图
+    import map
+    logger.info("map模块导入成功")
 except Exception as e:
-    logging.error(f"导入模块失败: {e}")
+    logger.error(f"导入模块失败: {e}")
     sys.exit(1)
-
-# 配置日志
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
 
 
 def parse_args():
@@ -83,6 +86,53 @@ def parse_args():
                       help="头像图片路径或URL")
     
     return parser.parse_args()
+
+
+def generate_new_map(output_dir="src/map", map_name=None):
+    """
+    生成新的Keep风格地图并保存到指定目录
+    
+    参数:
+        output_dir: 输出目录，默认是src/map
+        map_name: 地图文件名，None则生成带时间戳的文件名
+        
+    返回:
+        str: 生成的地图图片路径
+        None: 如果生成失败
+    """
+    try:
+        # 生成带时间戳的文件名
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        if map_name is None:
+            map_name = f"keep_map_{timestamp}.png"
+        
+        output_path = os.path.join(output_dir, map_name)
+        
+        logger.info(f"开始生成新地图: {output_path}")
+        
+        # 确保输出目录存在
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # 使用map模块生成地图
+        generated_map = map.generate_keep_style_path(
+            bg_path="src/map1.png",
+            path_mask_path="src/map2.png",
+            sample_rate=5,  # 提高采样率，减少处理点数
+            max_steps=3000,  # 限制最大步数
+            completion_threshold=0.2,  # 降低完成度阈值
+            target_length=400  # 限制路径长度
+        )
+        
+        # 保存生成的地图
+        generated_map.save(output_path)
+        logger.info(f"新地图生成成功: {output_path}")
+        
+        return output_path
+    except Exception as e:
+        logger.error(f"生成新地图失败: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return None
 
 
 def read_json_config(json_path):
@@ -205,7 +255,7 @@ def get_config_from_args(args):
         return valid_users
 
 
-def run_keepsultan(output_dir="images", username="", avatar=None):
+def run_keepsultan(output_dir="images", username="", avatar=None, generate_new_map_flag=True):
     """
     执行KeepSultan.py生成跑步截图
     
@@ -213,9 +263,10 @@ def run_keepsultan(output_dir="images", username="", avatar=None):
         output_dir: 输出目录
         username: Keep用户名
         avatar: 头像图片路径或URL（可选）
+        generate_new_map_flag: 是否生成新地图，默认为True
         
     返回:
-        str: 生成的图片路径
+        tuple: (生成的图片路径, 生成的地图路径)
         None: 如果生成失败
     """
     try:
@@ -225,18 +276,33 @@ def run_keepsultan(output_dir="images", username="", avatar=None):
         
         logger.info(f"执行KeepSultan生成图片: {output_path}")
         
-        # 随机选择地图图片
-        import random
-        import glob
+        selected_map = None
+        generated_map_path = None
         
-        # 扫描src/map目录中的所有图片文件
-        map_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "src", "map")
-        map_files = glob.glob(os.path.join(map_dir, "*.png")) + glob.glob(os.path.join(map_dir, "*.jpg")) + glob.glob(os.path.join(map_dir, "*.jpeg"))
+        # 生成新地图或随机选择现有地图
+        if generate_new_map_flag:
+            # 生成新地图
+            generated_map_path = generate_new_map()
+            if generated_map_path:
+                selected_map = generated_map_path
+                logger.info(f"使用新生成的地图: {selected_map}")
+            else:
+                logger.warning("新地图生成失败，将尝试使用现有地图")
         
-        # 随机选择一张地图图片，如果没有则使用None（使用默认值）
-        selected_map = random.choice(map_files) if map_files else None
-        if selected_map:
-            logger.info(f"随机选择地图图片: {selected_map}")
+        # 如果没有生成新地图或生成失败，则随机选择现有地图
+        if not selected_map:
+            import random
+            import glob
+            
+            # 扫描src/map目录中的所有图片文件
+            map_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "src", "map")
+            map_files = glob.glob(os.path.join(map_dir, "*.png")) + glob.glob(os.path.join(map_dir, "*.jpg")) + glob.glob(os.path.join(map_dir, "*.jpeg"))
+            
+            # 随机选择一张地图图片，如果没有则使用None（使用默认值）
+            selected_map = random.choice(map_files) if map_files else None
+            if selected_map:
+                logger.info(f"随机选择地图图片: {selected_map}")
+                generated_map_path = None  # 不是生成的地图，不需要删除
         
         # 使用KeepSultan模块直接生成图片
         try:
@@ -271,17 +337,17 @@ def run_keepsultan(output_dir="images", username="", avatar=None):
             app.save(args.save)
             
             logger.info(f"图片生成成功: {output_path}")
-            return output_path
+            return output_path, generated_map_path
         except Exception as e:
             logger.error(f"KeepSultan内部错误: {e}")
             import traceback
             logger.error(traceback.format_exc())
-            return None
+            return None, None
     except Exception as e:
         logger.error(f"执行KeepSultan时发生错误: {e}")
         import traceback
         logger.error(traceback.format_exc())
-        return None
+        return None, None
 
 
 def run_integrated_script(cookie, image_path, form_data_b):
@@ -371,7 +437,7 @@ def main():
         
         try:
             # 步骤1: 生成跑步截图
-            image_path = run_keepsultan(
+            image_path, generated_map_path = run_keepsultan(
                 username=user_config['username'],
                 avatar=user_config.get('avatar')
             )
@@ -393,12 +459,18 @@ def main():
                     # 删除生成的图片
                     if os.path.exists(image_path):
                         os.remove(image_path)
-                        logger.info(f"用户 {user_index} 已删除生成的图片: {image_path}")
+                        logger.info(f"用户 {user_index} 已删除生成的跑步截图: {image_path}")
+                    
+                    # 删除生成的地图（如果有）
+                    if generated_map_path and os.path.exists(generated_map_path):
+                        os.remove(generated_map_path)
+                        logger.info(f"用户 {user_index} 已删除生成的地图: {generated_map_path}")
+                    
                     logger.info(f"用户 {user_index} 工作流执行完成")
                     success_count += 1
                 except Exception as e:
-                    logger.warning(f"用户 {user_index} 删除图片失败: {e}")
-                    logger.info(f"用户 {user_index} 工作流执行完成，但图片删除失败")
+                    logger.warning(f"用户 {user_index} 删除文件失败: {e}")
+                    logger.info(f"用户 {user_index} 工作流执行完成，但文件删除失败")
                     success_count += 1
             else:
                 logger.error(f"用户 {user_index} 工作流失败: 图片上传或表单提交失败")

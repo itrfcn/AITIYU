@@ -14,12 +14,13 @@
 ## 功能特点
 
 1. **自动生成跑步截图**：通过 `KeepSultan.py` 生成模拟的跑步运动截图
-2. **自动上传提交系统**：通过 `integrated_script.py` 将生成的图片上传到指定提交系统
-3. **多用户批量处理**：支持通过 JSON 配置文件批量处理多个用户
-4. **灵活的参数配置**：支持命令行参数或 JSON 配置文件，支持参数覆盖
-5. **自动清理**：上传成功后自动删除生成的图片文件
-6. **Cookie保活**：通过有效期5年的Cookie，自动获取有效期只有2小时的`s=`部分，确保Cookie有效
-7. **详细的日志记录**：执行过程中生成详细的日志信息，便于调试和追踪
+2. **自动地图生成**：通过 `map.py` 自动生成Keep风格的运动轨迹地图
+3. **自动上传提交系统**：通过 `integrated_script.py` 将生成的图片上传到指定提交系统
+4. **多用户批量处理**：支持通过 JSON 配置文件批量处理多个用户
+5. **灵活的参数配置**：支持命令行参数或 JSON 配置文件，支持参数覆盖
+6. **自动清理**：上传成功后自动删除生成的图片和地图文件
+7. **Cookie保活**：通过有效期5年的Cookie，自动获取有效期只有2小时的`s=`部分，确保Cookie有效
+8. **详细的日志记录**：执行过程中生成详细的日志信息，便于调试和追踪
 
 ## 安装说明
 
@@ -42,7 +43,10 @@ pip install -r requirements.txt
 
 依赖包包括：
 - Pillow (图像处理)
+- opencv-python (图像处理和路径生成)
+- numpy (数值计算)
 - requests (HTTP 请求)
+- scipy (可选，提高路径生成性能)
 
 ## 配置说明
 
@@ -56,6 +60,9 @@ pip install -r requirements.txt
 第107行的城市 改成你自己的城市。
 第184-208行的参数 按照你的需要修改。
 
+### 3. 修改map.py文件
+修改src/map1.png为自己的地图背景图片。
+修改src/map2.png为自己的地图路径掩码图片。
 
 ## 使用方法
 
@@ -68,7 +75,7 @@ pip install -r requirements.txt
 **命令行参数方式**：
 
 ```bash
-python run_workflow.py -c "YOUR_COOKIE" -n "备注" --username "keep用户名"
+python run_workflow.py -c "YOUR_COOKIE" -n "备注" --username "keep用户名" --avatar "avatar_url"
 ```
 
 **JSON 配置文件方式**：
@@ -79,7 +86,8 @@ python run_workflow.py -c "YOUR_COOKIE" -n "备注" --username "keep用户名"
 {
     "cookie": "YOUR_COOKIE_STRING_HERE",
     "name": "备注",
-    "username": "keep用户名"
+    "username": "keep用户名",
+    "avatar": "avatar_url"
 }
 ```
 
@@ -99,12 +107,14 @@ python run_workflow.py --json user_config.json
         {
             "cookie": "USER1_COOKIE_STRING_HERE",
             "name": "备注",
-            "username": "keep用户名"
+            "username": "keep用户名",
+            "avatar": "avatar_url"
         },
         {
             "cookie": "USER2_COOKIE_STRING_HERE",
             "name": "备注",
-            "username": "keep用户名"    
+            "username": "keep用户名",
+            "avatar": "avatar_url"    
         }
     ]
 }
@@ -122,9 +132,14 @@ python run_workflow.py --json config_multi_user.json
 ├── fonts                    # 字体文件目录
 ├── images                   # 临时图片文件目录
 ├── src                      # 资源文件目录
+│   ├── map                  # 地图相关资源目录
+│   ├── map1.png             # 地图背景图片
+│   ├── map2.png             # 地图路径掩码图片
+│   └── ...                  # 其他资源文件
 ├── run_workflow.py          # 主工作流脚本
 ├── KeepSultan.py            # 跑步截图生成工具
 ├── integrated_script.py     # 图片上传脚本
+├── map.py                   # 运动轨迹地图生成工具
 ├── requirements.txt         # 项目依赖
 └── README.md                # 项目说明文档
 ```
@@ -142,6 +157,37 @@ python run_workflow.py --json config_multi_user.json
 
 **注意**：不需要复制完整的 Cookie 字符串，只需要 `remember_student_xxxxx` 部分即可，脚本会自动获取 `s=` 部分。
 
+## map.py 使用说明
+
+`map.py` 是一个用于生成 Keep 风格运动轨迹地图的工具，可以作为独立模块使用。
+
+### 功能特点
+
+1. **自动路径提取**：从地图掩码中自动提取路径点
+2. **智能路径生成**：使用贪心算法和方向偏好生成连贯的路径
+3. **路径平滑处理**：使用滑动窗口平均法平滑路径，减少路径抖动
+4. **路径长度控制**：支持设置目标路径长度，确保路径符合要求
+5. **图标支持**：支持在路径起点和终点添加自定义图标
+
+### 独立使用示例
+
+```python
+import map
+
+# 生成Keep风格的运动轨迹地图
+img = map.generate_keep_style_path(
+    bg_path="src/map1.png",
+    path_mask_path="src/map2.png",
+    sample_rate=5,  # 提高采样率，减少处理点数
+    max_steps=3000,  # 限制最大步数
+    completion_threshold=0.2,  # 降低完成度阈值
+    target_length=400  # 限制路径长度在400以内
+)
+
+# 保存生成的地图
+img.save("keep_style_path.png")
+```
+
 ## 注意事项
 
 1. **Cookie 有效性**：请确保提供的 Cookie 是有效的，否则无法完成上传操作
@@ -149,6 +195,7 @@ python run_workflow.py --json config_multi_user.json
 3. **操作频率**：系统可能有提交频率限制，请避免过于频繁的操作
 4. **配置文件格式**：JSON 配置文件必须符合指定的格式，否则可能导致解析失败
 5. **目录权限**：请确保脚本有足够的权限读取配置文件和写入图片文件
+6. **资源文件**：请确保 `src` 目录中包含必要的资源文件，如地图图片、图标等
 
 ## 鸣谢
 

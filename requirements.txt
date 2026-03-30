@@ -1,5 +1,10 @@
 # AITIYU项目依赖
 # 图像处理库
 Pillow
+opencv-python
+# 数值计算库
+numpy
 # HTTP请求库
 requests
+# 科学计算库（可选，提高性能）
+scipy

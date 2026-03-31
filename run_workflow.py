@@ -71,9 +71,12 @@ def parse_args():
     """
     parser = argparse.ArgumentParser(description="运行KeepSultan工作流")
     
-    # 添加JSON配置文件参数
-    parser.add_argument("-j", "--json", type=str, 
-                      help="JSON配置文件路径，用于读取参数")
+    # 添加配置源参数（互斥）
+    config_group = parser.add_mutually_exclusive_group()
+    config_group.add_argument("-j", "--json", type=str, 
+                             help="JSON配置文件路径，用于读取参数")
+    config_group.add_argument("-f", "--folder", type=str, 
+                             help="包含JSON配置文件的文件夹路径")
     
     # 添加命令行参数
     parser.add_argument("-c", "--cookie", type=str, 
@@ -210,28 +213,70 @@ def get_config_from_args(args):
             logger.error(f"表单参数JSON解析错误: {e}")
             return None, None
     
-    # 3. 从JSON文件读取配置（如果提供）
-    users_config = None
+    # 3. 从JSON文件或文件夹读取配置（如果提供）
+    users_config = []
     json_global_config = {}
+    
     if args.json:
-        users_config, json_global_config = read_json_config(args.json)
-        if not users_config:
+        # 从单个JSON文件读取配置
+        single_users_config, single_json_global_config = read_json_config(args.json)
+        if not single_users_config:
+            return None, None
+        users_config = single_users_config
+        json_global_config = single_json_global_config
+    
+    elif args.folder:
+        # 从文件夹读取所有JSON配置文件
+        import glob
+        
+        # 获取文件夹下所有JSON文件
+        json_files = glob.glob(os.path.join(args.folder, "*.json"))
+        
+        if not json_files:
+            logger.error(f"文件夹 {args.folder} 中没有JSON文件")
             return None, None
         
-        # 合并全局配置，命令行参数优先
-        for key, value in json_global_config.items():
-            if key not in global_config:
-                global_config[key] = value
+        logger.info(f"从文件夹 {args.folder} 中找到 {len(json_files)} 个JSON配置文件")
         
+        # 读取每个JSON文件
+        for json_file in json_files:
+            try:
+                file_users_config, file_global_config = read_json_config(json_file)
+                if file_users_config:
+                    # 添加用户配置
+                    users_config.extend(file_users_config)
+                    
+                    # 合并全局配置（如果有）
+                    for key, value in file_global_config.items():
+                        if key not in json_global_config:
+                            json_global_config[key] = value
+                    
+                    logger.info(f"成功读取配置文件: {os.path.basename(json_file)}")
+                else:
+                    logger.warning(f"跳过无效的配置文件: {os.path.basename(json_file)}")
+            except Exception as e:
+                logger.error(f"读取配置文件 {os.path.basename(json_file)} 时发生错误: {e}")
+                continue
+        
+        if not users_config:
+            logger.error("没有从文件夹中读取到有效的用户配置")
+            return None, None
+    
+    # 合并全局配置，命令行参数优先
+    for key, value in json_global_config.items():
+        if key not in global_config:
+            global_config[key] = value
+    
+    if json_global_config:
         logger.info(f"合并后的全局配置: {global_config}")
     
-    # 3. 确定最终的用户配置数组
+    # 4. 确定最终的用户配置数组
     if has_cli_args:
         # 有命令行参数，只处理单用户情况
         user_config = {}
         
-        # 如果有JSON配置，使用第一个用户的配置作为基础
-        if users_config and users_config:
+        # 如果有从文件或文件夹读取的配置，使用第一个用户的配置作为基础
+        if users_config:
             user_config.update(users_config[0])
         
         # 用命令行参数覆盖
@@ -246,7 +291,7 @@ def get_config_from_args(args):
         
         # 检查必要的参数
         if 'cookie' not in user_config or 'name' not in user_config:
-            logger.error("缺少必要参数: cookie和name必须提供（通过命令行或JSON文件）")
+            logger.error("缺少必要参数: cookie和name必须提供（通过命令行或配置文件）")
             return None, None
         
         # 设置默认值
@@ -256,9 +301,9 @@ def get_config_from_args(args):
         logger.info(f"最终配置: cookie={'*' * len(user_config['cookie'])}, name={user_config['name']}, username={user_config['username']}")
         return [user_config], global_config
     else:
-        # 没有命令行参数，使用JSON配置
+        # 没有命令行参数，使用从文件或文件夹读取的配置
         if not users_config:
-            logger.error("缺少配置: 必须提供JSON配置文件或命令行参数")
+            logger.error("缺少配置: 必须提供JSON配置文件、配置文件夹或命令行参数")
             return None, None
         
         # 验证每个用户的配置
@@ -281,7 +326,6 @@ def get_config_from_args(args):
         
         logger.info(f"最终配置: {len(valid_users)} 个有效用户")
         for i, user_config in enumerate(valid_users):
-            # logger.info(f"用户 {i+1}: name={user_config['name']}, username={user_config['username']}, cookie={user_config['cookie']}")
             logger.info(f"用户 {i+1}: name={user_config['name']}, username={user_config['username']}, cookie=保密")
         
         return valid_users, global_config

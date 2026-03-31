@@ -1,10 +1,42 @@
 {
+    "global_config": {
+        "course_url": "",
+        "default_form_data": {
+            "form_id": "",
+            "to_user_ida[]": "",
+            "_score": "0"
+        }
+    },
     "users": [
         {
             "cookie": "",
             "name": "",
             "username": "",
-            "avatar": ""
+            "avatar": "",
+            "course_url": "",
+            "default_form_data": {
+                "form_id": "",
+                "to_user_ida[]": "",
+                "_score": "0"
+            }
+        },
+        {
+            "cookie": "",
+            "name": "",
+            "username": "",
+            "avatar": "",
+            "course_url": "" 
+        },
+        {
+            "cookie": "",
+            "name": "",
+            "username": "",
+            "avatar": "",
+            "default_form_data": {
+                "form_id": "",
+                "to_user_ida[]": "",
+                "_score": "0"
+            }
         },
         {
             "cookie": "",

@@ -71,9 +71,12 @@ def parse_args():
     """
     parser = argparse.ArgumentParser(description="运行KeepSultan工作流")
     
-    # 添加JSON配置文件参数
-    parser.add_argument("-j", "--json", type=str, 
-                      help="JSON配置文件路径，用于读取参数")
+    # 添加配置源参数（互斥）
+    config_group = parser.add_mutually_exclusive_group()
+    config_group.add_argument("-j", "--json", type=str, 
+                             help="JSON配置文件路径，用于读取参数")
+    config_group.add_argument("-f", "--folder", type=str, 
+                             help="包含JSON配置文件的文件夹路径")
     
     # 添加命令行参数
     parser.add_argument("-c", "--cookie", type=str, 
@@ -84,6 +87,10 @@ def parse_args():
                       help="Keep用户名")
     parser.add_argument("-a", "--avatar", type=str, default="src/avatar.png", 
                       help="Keep头像URL或路径(可选)")
+    parser.add_argument("--course-url", type=str, 
+                      help="课程页面URL(可选，覆盖默认值)")
+    parser.add_argument("--form-data", type=str, 
+                      help="默认表单参数JSON字符串(可选，覆盖默认值)")
     
     return parser.parse_args()
 
@@ -143,8 +150,7 @@ def read_json_config(json_path):
         json_path: JSON配置文件路径
         
     返回:
-        list: 用户配置数组（单用户或多用户）
-        None: 如果读取失败
+        tuple: (用户配置数组, 全局配置字典) 或 (None, None) 如果读取失败
     """
     try:
         import json
@@ -152,24 +158,34 @@ def read_json_config(json_path):
         with open(json_path, 'r', encoding='utf-8') as f:
             config = json.load(f)
         
+        # 初始化返回值
+        users = []
+        global_config = {}
+        
+        # 提取全局配置（如果有）
+        if 'global_config' in config and isinstance(config['global_config'], dict):
+            global_config = config['global_config']
+            logger.info(f"成功从JSON文件读取全局配置")
+        
         # 检查是否是多用户配置
         if 'users' in config and isinstance(config['users'], list):
             users = config['users']
             logger.info(f"成功从JSON文件读取 {len(users)} 个用户配置: {json_path}")
-            return users
         else:
             # 单用户配置，转换为数组格式
+            users = [config]
             logger.info(f"成功从JSON文件读取单用户配置: {json_path}")
-            return [config]
+        
+        return users, global_config
     except FileNotFoundError:
         logger.error(f"JSON配置文件不存在: {json_path}")
-        return None
+        return None, None
     except json.JSONDecodeError as e:
         logger.error(f"JSON配置文件格式错误: {e}")
-        return None
+        return None, None
     except Exception as e:
         logger.error(f"读取JSON配置文件失败: {e}")
-        return None
+        return None, None
 
 
 def get_config_from_args(args):
@@ -180,26 +196,87 @@ def get_config_from_args(args):
         args: 命令行参数对象
         
     返回:
-        list: 用户配置数组（单用户或多用户）
-        None: 如果配置不完整或错误
+        tuple: (用户配置数组, 全局配置字典) 或 (None, None) 如果配置不完整或错误
     """
     # 1. 处理命令行参数（如果有）
     has_cli_args = args.cookie or args.name
     
-    # 2. 从JSON文件读取配置（如果提供）
-    users_config = None
-    if args.json:
-        users_config = read_json_config(args.json)
-        if not users_config:
-            return None
+    # 2. 处理全局命令行参数
+    global_config = {}
+    if args.course_url:
+        global_config['course_url'] = args.course_url
+    if args.form_data:
+        try:
+            import json
+            global_config['default_form_data'] = json.loads(args.form_data)
+        except json.JSONDecodeError as e:
+            logger.error(f"表单参数JSON解析错误: {e}")
+            return None, None
     
-    # 3. 确定最终的用户配置数组
+    # 3. 从JSON文件或文件夹读取配置（如果提供）
+    users_config = []
+    json_global_config = {}
+    
+    if args.json:
+        # 从单个JSON文件读取配置
+        single_users_config, single_json_global_config = read_json_config(args.json)
+        if not single_users_config:
+            return None, None
+        users_config = single_users_config
+        json_global_config = single_json_global_config
+    
+    elif args.folder:
+        # 从文件夹读取所有JSON配置文件
+        import glob
+        
+        # 获取文件夹下所有JSON文件
+        json_files = glob.glob(os.path.join(args.folder, "*.json"))
+        
+        if not json_files:
+            logger.error(f"文件夹 {args.folder} 中没有JSON文件")
+            return None, None
+        
+        logger.info(f"从文件夹 {args.folder} 中找到 {len(json_files)} 个JSON配置文件")
+        
+        # 读取每个JSON文件
+        for json_file in json_files:
+            try:
+                file_users_config, file_global_config = read_json_config(json_file)
+                if file_users_config:
+                    # 添加用户配置
+                    users_config.extend(file_users_config)
+                    
+                    # 合并全局配置（如果有）
+                    for key, value in file_global_config.items():
+                        if key not in json_global_config:
+                            json_global_config[key] = value
+                    
+                    logger.info(f"成功读取配置文件: {os.path.basename(json_file)}")
+                else:
+                    logger.warning(f"跳过无效的配置文件: {os.path.basename(json_file)}")
+            except Exception as e:
+                logger.error(f"读取配置文件 {os.path.basename(json_file)} 时发生错误: {e}")
+                continue
+        
+        if not users_config:
+            logger.error("没有从文件夹中读取到有效的用户配置")
+            return None, None
+    
+    # 合并全局配置，命令行参数优先
+    for key, value in json_global_config.items():
+        if key not in global_config:
+            global_config[key] = value
+    
+    if json_global_config:
+        logger.info(f"合并后的全局配置: {global_config}")
+    
+    # 4. 确定最终的用户配置数组
     if has_cli_args:
         # 有命令行参数，只处理单用户情况
         user_config = {}
         
-        # 如果有JSON配置，使用第一个用户的配置作为基础
-        if users_config and users_config:
+        # 如果有从文件或文件夹读取的配置，使用第一个用户的配置作为基础
+        if users_config:
             user_config.update(users_config[0])
         
         # 用命令行参数覆盖
@@ -214,20 +291,20 @@ def get_config_from_args(args):
         
         # 检查必要的参数
         if 'cookie' not in user_config or 'name' not in user_config:
-            logger.error("缺少必要参数: cookie和name必须提供（通过命令行或JSON文件）")
-            return None
+            logger.error("缺少必要参数: cookie和name必须提供（通过命令行或配置文件）")
+            return None, None
         
         # 设置默认值
         if 'username' not in user_config:
             user_config['username'] = ''
         
         logger.info(f"最终配置: cookie={'*' * len(user_config['cookie'])}, name={user_config['name']}, username={user_config['username']}")
-        return [user_config]
+        return [user_config], global_config
     else:
-        # 没有命令行参数，使用JSON配置
+        # 没有命令行参数，使用从文件或文件夹读取的配置
         if not users_config:
-            logger.error("缺少配置: 必须提供JSON配置文件或命令行参数")
-            return None
+            logger.error("缺少配置: 必须提供JSON配置文件、配置文件夹或命令行参数")
+            return None, None
         
         # 验证每个用户的配置
         valid_users = []
@@ -245,14 +322,13 @@ def get_config_from_args(args):
         
         if not valid_users:
             logger.error("没有有效的用户配置")
-            return None
+            return None, None
         
         logger.info(f"最终配置: {len(valid_users)} 个有效用户")
         for i, user_config in enumerate(valid_users):
-            # logger.info(f"用户 {i+1}: name={user_config['name']}, username={user_config['username']}, cookie={user_config['cookie']}")
             logger.info(f"用户 {i+1}: name={user_config['name']}, username={user_config['username']}, cookie=保密")
         
-        return valid_users
+        return valid_users, global_config
 
 
 def run_keepsultan(output_dir="images", username="", avatar=None, generate_new_map_flag=True):
@@ -350,7 +426,7 @@ def run_keepsultan(output_dir="images", username="", avatar=None, generate_new_m
         return None, None
 
 
-def run_integrated_script(cookie, image_path, form_data_b):
+def run_integrated_script(cookie, image_path, form_data_b, course_url=None, default_form_data=None):
     """
     执行integrated_script.py上传图片并提交表单
     
@@ -358,6 +434,8 @@ def run_integrated_script(cookie, image_path, form_data_b):
         cookie: Cookie信息
         image_path: 要上传的图片路径
         form_data_b: 班级姓名信息
+        course_url: 课程页面URL（可选，覆盖默认值）
+        default_form_data: 默认表单参数（可选，覆盖默认值）
         
     返回:
         bool: 是否执行成功
@@ -372,6 +450,8 @@ def run_integrated_script(cookie, image_path, form_data_b):
             original_image = integrated_script.IMAGE_PATH
             original_form_data = integrated_script.FORM_DATA_B
             original_debug = integrated_script.DEBUG
+            original_course_url = integrated_script.COURSE_URL
+            original_default_form_data = integrated_script.DEFAULT_FORM_DATA
             
             try:
                 # 设置全局变量
@@ -379,14 +459,24 @@ def run_integrated_script(cookie, image_path, form_data_b):
                 integrated_script.IMAGE_PATH = image_path
                 integrated_script.FORM_DATA_B = form_data_b
                 integrated_script.DEBUG = False
+                if course_url:
+                    integrated_script.COURSE_URL = course_url
+                if default_form_data:
+                    integrated_script.DEFAULT_FORM_DATA = default_form_data
                 
                 # 调用main函数
-                result = integrated_script.main(
-                    cookie=cookie,
-                    image_path=image_path,
-                    form_data_b=form_data_b,
-                    debug=False
-                )
+                kwargs = {
+                    'cookie': cookie,
+                    'image_path': image_path,
+                    'form_data_b': form_data_b,
+                    'debug': False
+                }
+                if course_url:
+                    kwargs['course_url'] = course_url
+                if default_form_data:
+                    kwargs['default_form_data'] = default_form_data
+                    
+                result = integrated_script.main(**kwargs)
                 
                 # integrated_script.main没有返回值，成功执行就返回True
                 logger.info("图片上传和表单提交成功")
@@ -397,6 +487,8 @@ def run_integrated_script(cookie, image_path, form_data_b):
                 integrated_script.IMAGE_PATH = original_image
                 integrated_script.FORM_DATA_B = original_form_data
                 integrated_script.DEBUG = original_debug
+                integrated_script.COURSE_URL = original_course_url
+                integrated_script.DEFAULT_FORM_DATA = original_default_form_data
         except Exception as e:
             logger.error(f"integrated_script内部错误: {e}")
             import traceback
@@ -417,7 +509,7 @@ def main():
     args = parse_args()
     
     # 获取最终配置（从JSON文件和命令行参数）
-    users_config = get_config_from_args(args)
+    users_config, global_config = get_config_from_args(args)
     if not users_config:
         logger.error("配置获取失败，无法继续执行")
         return
@@ -448,10 +540,16 @@ def main():
                 continue
             
             # 步骤2: 上传图片并提交表单
+            # 使用用户单独配置（如果有），否则使用全局配置
+            user_course_url = user_config.get('course_url', global_config.get('course_url'))
+            user_form_data = user_config.get('default_form_data', global_config.get('default_form_data'))
+            
             success = run_integrated_script(
                 cookie=user_config['cookie'],
                 image_path=image_path,
-                form_data_b=user_config['name']
+                form_data_b=user_config['name'],
+                course_url=user_course_url,
+                default_form_data=user_form_data
             )
             
             if success:

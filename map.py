@@ -1,5 +1,11 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
-map.py - 生成Keep风格运动轨迹图
+Name: map.py
+About: 生成Keep风格运动轨迹图
+Author: LynxFrost
+AuthorBlog: https://blog.itrf.cn
+
 
 该模块提供了生成类似Keep应用的运动轨迹图的功能，可以被其他Python文件引用。
 主要功能包括路径提取、平滑处理、图标添加等。

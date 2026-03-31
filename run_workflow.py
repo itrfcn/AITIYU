@@ -80,10 +80,10 @@ def parse_args():
                       help="账号Cookie")
     parser.add_argument("-n", "--name", type=str, 
                       help="提交备注")
-    parser.add_argument("--username", type=str, default="", 
+    parser.add_argument("-u", "--username", type=str, default="用户", 
                       help="Keep用户名")
-    parser.add_argument("--avatar", type=str, 
-                      help="头像图片路径或URL")
+    parser.add_argument("-a", "--avatar", type=str, default="src/avatar.png", 
+                      help="Keep头像URL或路径(可选)")
     
     return parser.parse_args()
 

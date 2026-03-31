@@ -184,8 +184,8 @@ class KeepConfig:
     template: str = "src/template.png"
     map: str = "src/map.png"
     avatar: str = "src/avatar.png"
-    username: str = ""
-
+    username: str = "用户"
+    
     # 时间、日期、天气等信息，支持特殊值自动填充
     date: str = "today"  # 默认留空，运行时自动填充今天
     end_time: TimeStr = "now"  # 默认留空，运行时自动填充当前时间

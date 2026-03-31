@@ -2,6 +2,11 @@
     "cookie": "",
     "name": "",
     "username": "",
-    "avatar": ""
+    "avatar": "",
+    "course_url": "",
+    "default_form_data": {
+        "form_id": "", 
+        "to_user_ida[]": "", 
+        "_score": "0"
+    }
 }
-

@@ -28,7 +28,7 @@ import time
 DEBUG = False
 
 # 课程页面URL（可自定义）
-COURSE_URL = "https://k8n.cn/student/profile/course/90083/21482"
+COURSE_URL = ""
 
 # Cookie信息（字符串格式，只需要remember_student部分，s=部分会自动获取）
 COOKIE_STRING = ""
@@ -41,8 +41,8 @@ FORM_DATA_B = ""  # 班级姓名信息
 
 # 默认表单参数
 DEFAULT_FORM_DATA = {
-    "form_id": "50033",  # 表单ID（可自定义）
-    "to_user_ida[]": "2569195",  # 接收人ID（可自定义）
+    "form_id": "",  # 表单ID（可自定义）
+    "to_user_ida[]": "",  # 接收人ID（可自定义）
     "_score": "0"
 }
 
@@ -51,17 +51,18 @@ SUPPORTED_IMAGE_FORMATS = ['.png']
 # =============================================================
 
 # 定义获取s=部分cookie的函数
-def get_session_cookie(remember_cookie=None):
+def get_session_cookie(remember_cookie=None, course_url=COURSE_URL):
     """
     获取s=部分的session cookie
     
     参数:
         remember_cookie: remember_student部分的cookie（可选）
+        course_url: 课程页面URL（可选）
     
     返回:
         s=部分的cookie字符串
     """
-    url = COURSE_URL
+    url = course_url
     
     # 构建基础请求头
     headers = {
@@ -100,12 +101,13 @@ def get_session_cookie(remember_cookie=None):
         return ""
 
 # 定义获取OSS上传密钥的函数
-def get_oss_key(cookies=None):
+def get_oss_key(cookies=None, course_url=COURSE_URL):
     """
     获取OSS上传密钥
     
     参数:
         cookies: Cookie信息，字符串格式（可选）
+        course_url: 课程页面URL（可选）
     
     返回:
         OSS配置字典
@@ -118,7 +120,7 @@ def get_oss_key(cookies=None):
         "accept-encoding": "gzip, deflate, br, zstd",
         "accept-language": "zh-CN,zh;q=0.9",
         "priority": "u=1, i",
-        "referer": COURSE_URL,
+        "referer": course_url,
         "sec-ch-ua": '"Chromium";v="146", "Not-A.Brand";v="24", "Google Chrome";v="146"',
         "sec-ch-ua-mobile": "?0",
         "sec-ch-ua-platform": "Windows",
@@ -286,7 +288,7 @@ def upload_image_to_oss(oss_config, image_path):
         return None
 
 # 定义提交表单的函数
-def submit_course_form(form_data, cookies=None, custom_headers=None):
+def submit_course_form(form_data, cookies=None, custom_headers=None, course_url=COURSE_URL):
     """
     向课程页面提交表单
     
@@ -294,12 +296,13 @@ def submit_course_form(form_data, cookies=None, custom_headers=None):
         form_data: 表单数据，字典格式
         cookies: Cookie信息，字符串格式或字典格式（可选）
         custom_headers: 自定义请求头，字典格式（可选）
+        course_url: 课程页面URL（可选）
     
     返回:
         response: 最终响应对象
     """
     # 基础请求URL
-    url = COURSE_URL
+    url = course_url
     
     # 基础请求头
     headers = {
@@ -309,7 +312,7 @@ def submit_course_form(form_data, cookies=None, custom_headers=None):
         "cache-control": "max-age=0",
         "content-type": "application/x-www-form-urlencoded",
         "origin": "https://k8n.cn",
-        "referer": COURSE_URL,
+        "referer": course_url,
         "sec-ch-ua": '"Chromium";v="146", "Not-A.Brand";v="24", "Google Chrome";v="146"',
         "sec-ch-ua-mobile": "?0",
         "sec-ch-ua-platform": '"Windows"',
@@ -433,7 +436,7 @@ def parse_args():
     return parser.parse_args()
 
 # 修改main函数以接受参数
-def main(cookie=COOKIE_STRING, image_path=IMAGE_PATH, form_data_b=FORM_DATA_B, debug=DEBUG):
+def main(cookie=COOKIE_STRING, image_path=IMAGE_PATH, form_data_b=FORM_DATA_B, debug=DEBUG, course_url=COURSE_URL, default_form_data=DEFAULT_FORM_DATA):
     """
     主函数，整合图片上传和表单提交流程
     
@@ -442,13 +445,17 @@ def main(cookie=COOKIE_STRING, image_path=IMAGE_PATH, form_data_b=FORM_DATA_B, d
         image_path: 图片本地路径
         form_data_b: 表单数据b（班级姓名信息）
         debug: 是否启用调试模式
+        course_url: 课程页面URL（可选）
+        default_form_data: 默认表单参数（可选）
     """
     # 使用传入的参数或默认值
-    global COOKIE_STRING, IMAGE_PATH, FORM_DATA_B, DEBUG
+    global COOKIE_STRING, IMAGE_PATH, FORM_DATA_B, DEBUG, COURSE_URL, DEFAULT_FORM_DATA
     COOKIE_STRING = cookie or COOKIE_STRING
     IMAGE_PATH = image_path or IMAGE_PATH
     FORM_DATA_B = form_data_b or FORM_DATA_B
     DEBUG = debug or DEBUG
+    COURSE_URL = course_url or COURSE_URL
+    DEFAULT_FORM_DATA = default_form_data or DEFAULT_FORM_DATA
     
     print("=" * 70)
     print("整合图片上传和表单提交功能")
@@ -485,7 +492,7 @@ def main(cookie=COOKIE_STRING, image_path=IMAGE_PATH, form_data_b=FORM_DATA_B, d
         print("\n" + "=" * 50)
         print("步骤2: 获取session cookie (s=部分)")
         print("=" * 50)
-        s_cookie = get_session_cookie(remember_cookie)
+        s_cookie = get_session_cookie(remember_cookie, course_url=COURSE_URL)
         
         # 合并两部分cookie
         if s_cookie:
@@ -501,7 +508,7 @@ def main(cookie=COOKIE_STRING, image_path=IMAGE_PATH, form_data_b=FORM_DATA_B, d
     print("\n" + "=" * 50)
     print("步骤3: 获取OSS上传密钥")
     print("=" * 50)
-    oss_config = get_oss_key(cookies)
+    oss_config = get_oss_key(cookies, course_url=COURSE_URL)
     if not oss_config:
         return
     
@@ -566,7 +573,7 @@ def main(cookie=COOKIE_STRING, image_path=IMAGE_PATH, form_data_b=FORM_DATA_B, d
     
     # 直接提交表单（非交互式）
     print("\n正在提交表单...")
-    response = submit_course_form(form_data, cookies)
+    response = submit_course_form(form_data, cookies, course_url=COURSE_URL)
     
     # 处理响应
     if response:

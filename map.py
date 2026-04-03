@@ -4,8 +4,6 @@
 Name: map.py
 About: 生成Keep风格运动轨迹图
 Author: LynxFrost
-AuthorBlog: https://blog.itrf.cn
-
 
 该模块提供了生成类似Keep应用的运动轨迹图的功能，可以被其他Python文件引用。
 主要功能包括路径提取、平滑处理、图标添加等。
@@ -14,7 +12,9 @@ AuthorBlog: https://blog.itrf.cn
 import cv2
 import numpy as np
 import random
+import logging
 from PIL import Image
+import os
 
 # 尝试导入KDTree，如果没有则使用备用方案
 try:
@@ -22,7 +22,7 @@ try:
     USE_KDTREE = True
 except ImportError:
     USE_KDTREE = False
-    print("警告: scipy未安装，将使用普通算法。安装scipy可提高性能: pip install scipy")
+    logging.warning("scipy未安装，将使用普通算法。安装scipy可提高性能: pip install scipy")
 
 # 预加载图标缓存
 START_ICON = None
@@ -36,10 +36,51 @@ def load_icons():
     """
     global START_ICON, END_ICON
     try:
-        START_ICON = cv2.imread("src/start.png", cv2.IMREAD_UNCHANGED)
-        END_ICON = cv2.imread("src/end.png", cv2.IMREAD_UNCHANGED)
-    except Exception:
+        # 获取脚本所在目录的路径
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        start_icon_path = os.path.join(script_dir, "src", "start.png")
+        end_icon_path = os.path.join(script_dir, "src", "end.png")
+        
+        # 使用绝对路径并确保路径正确
+        START_ICON = cv2.imread(os.path.normpath(start_icon_path), cv2.IMREAD_UNCHANGED)
+        END_ICON = cv2.imread(os.path.normpath(end_icon_path), cv2.IMREAD_UNCHANGED)
+        
+        # 如果cv2.imread返回None，尝试使用PIL读取后转换为cv2格式
+        from PIL import Image
+        import numpy as np
+        
+        # 处理起点图标
+        if START_ICON is None:
+            # 使用PIL读取图片
+            pil_image = Image.open(start_icon_path)
+            # 转换为numpy数组
+            if pil_image.mode == 'RGBA':
+                # 如果图片有alpha通道
+                bgr = np.array(pil_image)[:, :, :3][:, :, ::-1]  # RGB转BGR
+                alpha = np.array(pil_image)[:, :, 3]
+                # 合并为BGRA
+                START_ICON = np.dstack((bgr, alpha))
+            else:
+                # 没有alpha通道
+                START_ICON = np.array(pil_image)[:, :, ::-1]  # RGB转BGR
+        
+        # 处理终点图标
+        if END_ICON is None:
+            # 使用PIL读取图片
+            pil_image = Image.open(end_icon_path)
+            # 转换为numpy数组
+            if pil_image.mode == 'RGBA':
+                # 如果图片有alpha通道
+                bgr = np.array(pil_image)[:, :, :3][:, :, ::-1]  # RGB转BGR
+                alpha = np.array(pil_image)[:, :, 3]
+                # 合并为BGRA
+                END_ICON = np.dstack((bgr, alpha))
+            else:
+                # 没有alpha通道
+                END_ICON = np.array(pil_image)[:, :, ::-1]  # RGB转BGR
+    except Exception as e:
         # 静默失败，后续会使用圆点标记作为备选
+        logging.warning(f"Failed to load icons: {e}")
         pass
 
 # 初始化图标缓存
@@ -102,16 +143,33 @@ def generate_keep_style_path(
         Exception: 当图片读取失败或未检测到路径时抛出
     """
     # 1. 读取背景 + 路径图
+    # 获取脚本所在目录的路径
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    # 尝试直接读取路径
     bg = cv2.imread(bg_path)
     mask = cv2.imread(path_mask_path)
+    
+    # 如果读取失败，尝试将路径解析为相对于脚本所在目录的路径
+    if bg is None:
+        bg_path = os.path.join(script_dir, bg_path)
+        bg = cv2.imread(bg_path)
+    
+    if mask is None:
+        path_mask_path = os.path.join(script_dir, path_mask_path)
+        mask = cv2.imread(path_mask_path)
+    
     if bg is None or mask is None:
         raise Exception("图片读取失败")
 
     h, w = bg.shape[:2]
 
-    # 2. 提取路径上所有点
-    gray = cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY)
-    _, binary = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY)
+    # 2. 提取路径上所有点（指定掩码颜色为红色）
+    # 创建红色掩码
+    # 在BGR格式中，红色是 (0, 0, 255)
+    lower_red = np.array([0, 0, 100])  # 红色的下限
+    upper_red = np.array([50, 50, 255])  # 红色的上限
+    binary = cv2.inRange(mask, lower_red, upper_red)
     
     # 使用形态学操作减少噪点
     kernel = np.ones((3, 3), np.uint8)
@@ -119,9 +177,7 @@ def generate_keep_style_path(
     binary = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel)  # 闭运算填充
     
     # 提取路径点
-    ys, xs = np.where(binary < 128)  # 假设路径是深色
-    if len(xs) == 0:
-        ys, xs = np.where(binary > 128)
+    ys, xs = np.where(binary > 128)  # 红色区域的值为255
     
     # 路径点下采样，减少计算量
     points = list(zip(xs[::sample_rate], ys[::sample_rate]))
@@ -290,6 +346,14 @@ def generate_keep_style_path(
                 else:
                     # 没有alpha通道，直接绘制
                     out[start_y:start_y+icon_h, start_x:start_x+icon_w] = resized_start[:, :, :3]
+            else:
+                # 图标超出边界时，使用圆形标记作为备用
+                sx, sy = path[0]
+                cv2.circle(out, (sx, sy), thickness + 2, track_color, -1)
+        else:
+            # 图标加载失败（start_icon为None），使用圆形标记作为备用
+            sx, sy = path[0]
+            cv2.circle(out, (sx, sy), thickness + 2, track_color, -1)
         
         # 绘制终点图标
         if end_icon is not None:
@@ -315,6 +379,14 @@ def generate_keep_style_path(
                 else:
                     # 没有alpha通道，直接绘制
                     out[end_y:end_y+icon_h, end_x:end_x+icon_w] = resized_end[:, :, :3]
+            else:
+                # 图标超出边界时，使用圆形标记作为备用
+                ex, ey = path[-1]
+                cv2.circle(out, (ex, ey), thickness + 2, track_color, -1)
+        else:
+            # 图标加载失败（end_icon为None），使用圆形标记作为备用
+            ex, ey = path[-1]
+            cv2.circle(out, (ex, ey), thickness + 2, track_color, -1)
     except Exception:
         # 如果图标绘制失败，回退到原来的圆点标记
         # 起点圆点

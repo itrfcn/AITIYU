@@ -1,6 +1,7 @@
 # 项目特定文件
 multi_user.json
 user.json
+.keepsultan_cache
 
 # Python编译文件
 *.pyc
@@ -54,3 +55,9 @@ Desktop.ini
 *.temp
 .tmp/
 .temp/
+
+# 数据和图片文件夹（保留文件夹，忽略内容）
+data/*
+!data/.gitkeep
+images/*
+!images/.gitkeep

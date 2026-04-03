@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>登录 - 跑步截图提交系统</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-5">
+        <div class="row justify-content-center">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header text-center">
+                        <h3>跑步截图提交系统</h3>
+                    </div>
+                    <div class="card-body">
+                        <!-- 公告模块 -->
+                        <div class="alert alert-info mb-4" role="alert">
+                            <h4 class="alert-heading text-center">系统公告</h4>
+                            <p class="text-center">欢迎使用跑步截图提交系统！</p>
+                            <hr>
+                            <ul class="mb-0">
+                                <li>本项目已在github上开源，欢迎贡献代码</li>
+                                <li>开源地址：<a href="https://github.com/itrfcn/AITIYU/">AITIYU</a></li>
+                            </ul>
+                        </div>
+                        
+                        <h5 class="card-title text-center mb-4">请输入凭证登录</h5>
+                        <form id="login-form">
+                            <div class="mb-3">
+                                <label for="credential" class="form-label">凭证：</label>
+                                <input type="text" class="form-control" id="credential" name="credential" placeholder="请输入凭证" required autofocus>
+                            </div>
+                            <div id="error-message" class="alert alert-danger" style="display: none;"></div>
+                            <button type="submit" class="btn btn-primary w-100">登录</button>
+                        </form>
+                    </div>
+                    <div class="card-footer text-center text-muted">
+                        凭证由管理员提供
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            $('#login-form').submit(function(e) {
+                e.preventDefault();
+                
+                const credential = $('#credential').val().trim();
+                
+                if (!credential) {
+                    $('#error-message').text('请输入凭证');
+                    $('#error-message').show();
+                    return;
+                }
+                
+                // 提交登录请求
+                $.ajax({
+                    url: '/login',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({ credential: credential }),
+                    success: function(response) {
+                        if (response.success) {
+                            // 登录成功，跳转到主页
+                            window.location.href = '/';
+                        } else {
+                            // 显示错误信息
+                            $('#error-message').text(response.message || '登录失败');
+                            $('#error-message').show();
+                        }
+                    },
+                    error: function() {
+                        $('#error-message').text('登录失败，请稍后重试');
+                        $('#error-message').show();
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>

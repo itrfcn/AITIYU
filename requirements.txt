@@ -8,3 +8,9 @@ numpy
 requests
 # 科学计算库（可选，提高性能）
 scipy
+# Web框架
+Flask
+# HTML解析库
+beautifulsoup4
+# 定时任务库
+Flask-APScheduler

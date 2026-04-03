@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>跑步截图提交系统</title>
+    <!-- 引入Bootstrap CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            padding: 20px;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        .qr-container {
+            text-align: center;
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+        }
+        .qr-code {
+            max-width: 300px;
+            margin: 0 auto 20px;
+        }
+        .cookie-result {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #e9ecef;
+            border-radius: 5px;
+            word-break: break-all;
+        }
+        .loading {
+            display: none;
+        }
+        .status-text {
+            font-size: 18px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="text-center mb-4">微信扫码获取Cookie</h1>
+        <div class="text-end mb-3">
+            <span class="me-3" id="credential-info"></span>
+            <button id="delete-submission-btn" class="btn btn-danger me-2">删除提交内容</button>
+            <button id="logout-btn" class="btn btn-secondary">登出</button>
+        </div>
+        
+        <!-- 使用教程模块 -->
+        <div class="mt-4 mb-5">
+            <h4>使用教程</h4>
+            <div class="accordion" id="tutorialAccordion">
+                <div class="accordion-item">
+                    <h2 class="accordion-header" id="headingOne">
+                        <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne" aria-expanded="true" aria-controls="collapseOne">
+                            1. 凭证使用说明
+                        </button>
+                    </h2>
+                    <div id="collapseOne" class="accordion-collapse collapse show" aria-labelledby="headingOne" data-bs-parent="#tutorialAccordion">
+                        <div class="accordion-body">
+                            <p>每个凭证代表一个用户，具备唯一性，请勿分享。</p>
+                            <ul>
+                                <li>凭证不可找回，一旦丢失将无法恢复</li>
+                                <li>每个凭证只能提交一次信息</li>
+                                <li>想修改，请删除后重新提交信息</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="accordion-item">
+                    <h2 class="accordion-header" id="headingTwo">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTwo" aria-expanded="false" aria-controls="collapseTwo">
+                            2. 操作流程
+                        </button>
+                    </h2>
+                    <div id="collapseTwo" class="accordion-collapse collapse" aria-labelledby="headingTwo" data-bs-parent="#tutorialAccordion">
+                        <div class="accordion-body">
+                            <ol>
+                                <li>获取二维码，扫码登录</li>
+                                <li>填写相关信息，请确保信息准确</li>
+                                <li>选择提交时间，不选择默认为20：30 </li>
+                                <li>点击"提交信息"按钮完成提交</li>
+                            </ol>
+                        </div>
+                    </div>
+                </div>
+                <div class="accordion-item">
+                    <h2 class="accordion-header" id="headingThree">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseThree" aria-expanded="false" aria-controls="collapseThree">
+                            3. 参数说明
+                        </button>
+                    </h2>
+                    <div id="collapseThree" class="accordion-collapse collapse" aria-labelledby="headingThree" data-bs-parent="#tutorialAccordion">
+                        <div class="accordion-body">
+                            <ol>
+                                <li>URL为提交截图页面的URL</li>
+                                <li>审核员根据实际情况选择</li>
+                                <li>备注为提交截图的备注</li>
+                                <li>keep名称为提交截图的keep名称</li>
+                                <li>QQ号用于生成keep头像</li>
+                            </ol>
+                        </div>
+                    </div>
+                </div>
+                <div class="accordion-item">
+                    <h2 class="accordion-header" id="headingFour">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseFour" aria-expanded="false" aria-controls="collapseFour">
+                            4. 系统相关说明
+                        </button>
+                    </h2>
+                    <div id="collapseFour" class="accordion-collapse collapse" aria-labelledby="headingFour" data-bs-parent="#tutorialAccordion">
+                        <div class="accordion-body">
+                            <p>使用前须知，使用本系统就表示同意以下条款：</p>
+                            <ol>
+                                <li>你可以根据需要自定义提交时间</li>
+                                <li>不选择提交时间，默认在20：30 自动提交</li>
+                                <li>系统仅供学习使用，请勿用于违规用途</li>
+                                <li>你需要对自己的操作负责，本站不承担任何责任</li>
+                            </ol>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 获取二维码按钮 -->
+        <div class="text-center mb-4">
+            <button id="get-qr-btn" class="btn btn-primary btn-lg">获取二维码</button>
+            <div id="loading" class="loading mt-2">
+                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                正在获取二维码...
+            </div>
+        </div>
+        
+        <!-- 二维码显示区域 -->
+        <div id="qr-section" style="display: none;">
+            <div class="qr-container">
+                <h3>请使用微信扫码登录</h3>
+                <div id="qr-display" class="qr-code"></div>
+                <div id="status" class="status-text text-secondary">正在等待扫码...</div>
+            </div>
+        </div>
+        
+        <!-- Cookie结果显示区域 -->
+        <div id="cookie-result" class="cookie-result" style="display: none;">
+            <h4>获取到的Cookie：</h4>
+            <pre id="cookie-content"></pre>
+            <button id="copy-btn" class="btn btn-success mt-2">复制Cookie</button>
+        </div>
+        
+        <!-- 表单URL输入和结果显示区域 -->
+        <div id="course-section" style="display: none;">
+            <h4 class="mt-4">获取表单信息</h4>
+            <form id="course-form">
+                <div class="mb-3">
+                    <label for="course-url" class="form-label">提交页面URL：</label>
+                    <input type="text" class="form-control" id="course-url" placeholder="请输入提交页面的URL" required>
+                </div>
+                <button type="submit" class="btn btn-primary">获取表单信息</button>
+                <div id="course-loading" class="loading mt-2">
+                    <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                    正在获取表单信息...
+                </div>
+            </form>
+            
+            <!-- 表单信息结果区域 -->
+            <div id="course-result" class="mt-4" style="display: none;">
+                <h5>表单信息：</h5>
+                <div id="form-id" class="mb-2"></div>
+                <div class="mb-3">
+                    <label for="auditor-select" class="form-label">选择审核员：</label>
+                    <select id="auditor-select" class="form-select" required>
+                        <option value="">请选择审核员</option>
+                    </select>
+                </div>
+            </div>
+            
+            <!-- 额外信息填写表单 -->
+            <div id="extra-info-section" class="mt-4" style="display: none;">
+                <h4>填写额外信息</h4>
+                <form id="extra-info-form">
+                    <!-- 隐藏字段保存必要信息 -->
+                    <input type="hidden" id="hidden-course-url" name="course_url">
+                    <input type="hidden" id="hidden-form-id" name="form_id">
+                    <input type="hidden" id="hidden-users" name="users">
+                    <input type="hidden" id="hidden-auditor" name="auditor">
+                    <input type="hidden" id="hidden-cookie" name="cookie">
+                    
+                    <div class="mb-3">
+                        <label for="remark-name" class="form-label">备注：</label>
+                        <input type="text" class="form-control" id="remark-name" name="remark_name" placeholder="请输入备注信息" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="keep-username" class="form-label">keep名称：</label>
+                        <input type="text" class="form-control" id="keep-username" name="keep_username" placeholder="请输入keep名称" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="qq-number" class="form-label">QQ号：</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" id="qq-number" name="qq_number" placeholder="请输入QQ号" required>
+                            <button type="button" class="btn btn-outline-secondary" id="preview-qq-avatar">预览头像</button>
+                        </div>
+                        <div id="qq-avatar-preview" class="mt-2" style="display: none;">
+                            <img id="avatar-img" src="" alt="QQ头像预览" class="img-thumbnail" style="width: 100px; height: 100px;">
+                        </div>
+                    </div>
+                    
+                    <!-- 定时任务设置 -->
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="schedule-enabled" name="schedule_enabled">
+                            <label class="form-check-label" for="schedule-enabled">启用定时任务</label>
+                        </div>
+                    </div>
+                    
+                    <div id="schedule-options" class="mb-3" style="display: none;">
+                        <div class="mb-3">
+                            <label class="form-label">执行时间区间：</label>
+                            <div class="row">
+                                <div class="col-6">
+                                    <input type="time" class="form-control" id="schedule-start-time" name="schedule_start_time" value="08:00">
+                                    <small class="form-text text-muted">开始时间</small>
+                                </div>
+                                <div class="col-6">
+                                    <input type="time" class="form-control" id="schedule-end-time" name="schedule_end_time" value="09:00">
+                                    <small class="form-text text-muted">结束时间</small>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">执行日期：</label>
+                            <div class="row">
+                                <div class="col-7">
+                                    <div class="btn-group" role="group" aria-label="执行日期选择">
+                                        <button type="button" class="btn btn-outline-primary day-btn" data-day="1">周一</button>
+                                        <button type="button" class="btn btn-outline-primary day-btn" data-day="2">周二</button>
+                                        <button type="button" class="btn btn-outline-primary day-btn" data-day="3">周三</button>
+                                        <button type="button" class="btn btn-outline-primary day-btn" data-day="4">周四</button>
+                                        <button type="button" class="btn btn-outline-primary day-btn" data-day="5">周五</button>
+                                        <button type="button" class="btn btn-outline-primary day-btn" data-day="6">周六</button>
+                                        <button type="button" class="btn btn-outline-primary day-btn" data-day="7">周日</button>
+                                    </div>
+                                </div>
+                                <div class="col-5">
+                                    <div class="btn-group" role="group" aria-label="快捷选择">
+                                        <button type="button" class="btn btn-outline-secondary" id="select-all-days">全选</button>
+                                        <button type="button" class="btn btn-outline-secondary" id="select-weekdays">工作日</button>
+                                        <button type="button" class="btn btn-outline-secondary" id="select-weekends">周末</button>
+                                    </div>
+                                </div>
+                            </div>
+                            <input type="hidden" id="schedule-days" name="schedule_days" value="[1,2,3,4,5,6,7]">
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">提交信息</button>
+                    <div id="extra-info-loading" class="loading mt-2">
+                        <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                        正在提交信息...
+                    </div>
+                </form>
+                
+                <!-- 提交结果区域 -->
+                <div id="submit-result" class="mt-4" style="display: none;">
+                    <h5>提交结果：</h5>
+                    <div id="result-message" class="alert"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 引入jQuery和Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            // 获取并显示当前凭证信息
+            function loadCredentialInfo() {
+                $.ajax({
+                    url: '/get_current_credential',
+                    type: 'GET',
+                    success: function(response) {
+                        if (response.success) {
+                            $('#credential-info').text('凭证: ' + response.credential);
+                        } else {
+                            $('#credential-info').text('已登录');
+                        }
+                    },
+                    error: function() {
+                        $('#credential-info').text('已登录');
+                    }
+                });
+            }
+            
+            // 加载凭证信息
+            loadCredentialInfo();
+            
+            // 登出按钮点击事件
+            $('#logout-btn').click(function() {
+                window.location.href = '/logout';
+            });
+            let sessionId = null;
+            let checkInterval = null;
+            
+            // 获取二维码按钮点击事件
+            $('#get-qr-btn').click(function() {
+                $(this).hide();
+                $('#loading').show();
+                
+                // 调用后端API获取二维码
+                $.ajax({
+                    url: '/get_qr_code',
+                    type: 'GET',
+                    success: function(response) {
+                        if (response.success) {
+                            sessionId = response.session_id;
+                            
+                            // 显示二维码
+                            $('#qr-display').html('<img src="' + response.qr_url + '" alt="微信登录二维码" class="img-fluid">');
+                            $('#qr-section').show();
+                            
+                            // 开始检查登录状态
+                            startCheckingLogin();
+                        } else {
+                            alert('获取二维码失败：' + (response.message || '未知错误'));
+                            $('#get-qr-btn').show();
+                        }
+                        $('#loading').hide();
+                    },
+                    error: function() {
+                        alert('获取二维码失败，请稍后重试');
+                        $('#get-qr-btn').show();
+                        $('#loading').hide();
+                    }
+                });
+            });
+            
+            // 开始检查登录状态
+            function startCheckingLogin() {
+                if (checkInterval) {
+                    clearInterval(checkInterval);
+                }
+                
+                checkInterval = setInterval(function() {
+                    checkLoginStatus();
+                }, 2000); // 每2秒检查一次
+            }
+            
+            // 检查登录状态
+            function checkLoginStatus() {
+                if (!sessionId) return;
+                
+                $.ajax({
+                    url: '/check_login/' + sessionId,
+                    type: 'GET',
+                    success: function(response) {
+                        if (response.success) {
+                            if (response.logged_in) {
+                                // 登录成功，停止检查
+                                clearInterval(checkInterval);
+                                checkInterval = null;
+                                
+                                // 更新状态
+                                $('#status').text('登录成功！正在获取Cookie...');
+                                $('#status').removeClass('text-secondary').addClass('text-success');
+                                
+                                // 显示Cookie
+                                if (response.cookie) {
+                                    $('#cookie-content').text(response.cookie);
+                                    $('#cookie-result').show();
+                                    // 显示课程URL输入表单
+                                    $('#course-section').show();
+                                } else {
+                                    $('#status').text('登录成功，但未获取到Cookie');
+                                    $('#status').removeClass('text-secondary text-success').addClass('text-warning');
+                                }
+                            }
+                        } else {
+                            // 会话不存在，停止检查
+                            clearInterval(checkInterval);
+                            checkInterval = null;
+                            alert('会话已过期，请重新获取二维码');
+                            $('#qr-section').hide();
+                            $('#get-qr-btn').show();
+                        }
+                    },
+                    error: function() {
+                        // 错误处理
+                    }
+                });
+            }
+            
+            // 复制Cookie按钮点击事件
+            $('#copy-btn').click(function() {
+                const cookieText = $('#cookie-content').text();
+                navigator.clipboard.writeText(cookieText).then(function() {
+                    alert('Cookie已复制到剪贴板');
+                }).catch(function(err) {
+                    alert('复制失败：' + err);
+                });
+            });
+            
+            // QQ头像预览功能
+            $('#preview-qq-avatar').click(function() {
+                const qqNumber = $('#qq-number').val().trim();
+                if (!qqNumber) {
+                    alert('请先输入QQ号');
+                    return;
+                }
+                
+                // 生成QQ头像URL
+                const avatarUrl = `http://q1.qlogo.cn/g?b=qq&nk=${qqNumber}&s=100`;
+                
+                // 显示头像预览
+                $('#avatar-img').attr('src', avatarUrl);
+                $('#qq-avatar-preview').show();
+            });
+            
+            // 定时任务设置
+            $('#schedule-enabled').change(function() {
+                if ($(this).is(':checked')) {
+                    $('#schedule-options').show();
+                } else {
+                    $('#schedule-options').hide();
+                }
+            });
+            
+            // 日期选择按钮点击事件
+            $('.day-btn').click(function() {
+                $(this).toggleClass('active btn-primary');
+                updateScheduleDays();
+            });
+            
+            // 全选按钮点击事件
+            $('#select-all-days').click(function() {
+                $('.day-btn').addClass('active btn-primary');
+                updateScheduleDays();
+            });
+            
+            // 工作日按钮点击事件
+            $('#select-weekdays').click(function() {
+                $('.day-btn').removeClass('active btn-primary');
+                $('.day-btn[data-day="1"]').addClass('active btn-primary');
+                $('.day-btn[data-day="2"]').addClass('active btn-primary');
+                $('.day-btn[data-day="3"]').addClass('active btn-primary');
+                $('.day-btn[data-day="4"]').addClass('active btn-primary');
+                $('.day-btn[data-day="5"]').addClass('active btn-primary');
+                updateScheduleDays();
+            });
+            
+            // 周末按钮点击事件
+            $('#select-weekends').click(function() {
+                $('.day-btn').removeClass('active btn-primary');
+                $('.day-btn[data-day="6"]').addClass('active btn-primary');
+                $('.day-btn[data-day="7"]').addClass('active btn-primary');
+                updateScheduleDays();
+            });
+            
+            // 更新选中的日期
+            function updateScheduleDays() {
+                const selectedDays = [];
+                $('.day-btn.active').each(function() {
+                    selectedDays.push(parseInt($(this).data('day')));
+                });
+                $('#schedule-days').val(JSON.stringify(selectedDays));
+            }
+            
+            // 初始化日期选择（默认全选）
+            $('.day-btn').addClass('active btn-primary');
+            updateScheduleDays();
+            
+            // 审核员选择事件监听器
+            $('#auditor-select').change(function() {
+                const selectedOption = $(this).find('option:selected');
+                const userInfo = selectedOption.data('user-info');
+                
+                if (userInfo) {
+                    // 保存选中的审核员信息到隐藏字段
+                    $('#hidden-auditor').val(JSON.stringify(userInfo));
+                    // 显示额外信息表单
+                    $('#extra-info-section').show();
+                } else {
+                    // 隐藏额外信息表单
+                    $('#extra-info-section').hide();
+                }
+            });
+            
+            // 课程表单提交事件
+            $('#course-form').submit(function(e) {
+                e.preventDefault();
+                
+                const courseUrl = $('#course-url').val().trim();
+                const cookie = $('#cookie-content').text().trim();
+                
+                if (!courseUrl || !cookie) {
+                    alert('请确保已获取Cookie并输入课程URL');
+                    return;
+                }
+                
+                // 校验课程URL格式
+                const courseUrlPattern = /^https:\/\/k8n\.cn\/student\/profile\/course\/\d+\/\d+$/;
+                if (!courseUrlPattern.test(courseUrl)) {
+                    alert('课程URL格式不正确，请输入类似 https://k8n.cn/student/profile/course/123456/789012 的格式');
+                    return;
+                }
+                
+                // 显示加载状态
+                $(this).find('button').prop('disabled', true);
+                $('#course-loading').show();
+                $('#course-result').hide();
+                $('#extra-info-section').hide();
+                $('#submit-result').hide();
+                
+                // 发送AJAX请求获取课程信息
+                $.ajax({
+                    url: '/get_course_info',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({
+                        'course_url': courseUrl,
+                        'cookie': cookie
+                    }),
+                    success: function(response) {
+                        if (response.success) {
+                            // 显示课程信息
+                            let resultHtml = '';
+                            
+                            // 显示表单ID
+                            if (response.form_id) {
+                                resultHtml += `<div class="alert alert-info">表单ID: <strong>${response.form_id}</strong></div>`;
+                            }
+                            
+                            // 清空并填充审核员下拉框
+                            const auditorSelect = $('#auditor-select');
+                            auditorSelect.empty();
+                            auditorSelect.append('<option value="">请选择审核员</option>');
+                            
+                            if (response.users && response.users.length > 0) {
+                                response.users.forEach(function(user) {
+                                    // 使用data属性存储用户信息，避免JSON字符串转义问题
+                                    auditorSelect.append(`<option value="${user.user_id}" data-user-info='${JSON.stringify(user)}'>${user.name} (ID: ${user.user_id})</option>`);
+                                });
+                            } else {
+                                auditorSelect.append('<option value="" disabled>未找到审核员信息</option>');
+                            }
+                            
+                            $('#form-id').html(resultHtml);
+                            $('#course-result').show();
+                            
+                            // 保存必要信息到隐藏字段
+                            $('#hidden-course-url').val(courseUrl);
+                            $('#hidden-form-id').val(response.form_id || '');
+                            $('#hidden-users').val(JSON.stringify(response.users || []));
+                            $('#hidden-cookie').val(cookie);
+                            
+                            // 隐藏额外信息表单，等待用户选择审核员
+                            $('#extra-info-section').hide();
+                        } else {
+                            alert('获取课程信息失败：' + (response.message || '未知错误'));
+                        }
+                    },
+                    error: function() {
+                        alert('获取课程信息失败，请稍后重试');
+                    },
+                    complete: function() {
+                        // 隐藏加载状态
+                        $('#course-form').find('button').prop('disabled', false);
+                        $('#course-loading').hide();
+                    }
+                });
+            });
+            
+            // 额外信息表单提交事件
+            $('#extra-info-form').submit(function(e) {
+                e.preventDefault();
+                
+                // 表单验证
+                const remarkName = $('#remark-name').val().trim();
+                const keepUsername = $('#keep-username').val().trim();
+                const qqNumber = $('#qq-number').val().trim();
+                const selectedAuditor = JSON.parse($('#hidden-auditor').val() || '{}');
+                
+                if (!remarkName) {
+                    alert('请输入备注name');
+                    $('#remark-name').focus();
+                    return;
+                }
+                
+                if (!keepUsername) {
+                    alert('请输入keep名称username');
+                    $('#keep-username').focus();
+                    return;
+                }
+                
+                if (!qqNumber) {
+                    alert('请输入QQ号');
+                    $('#qq-number').focus();
+                    return;
+                }
+                
+                if (!selectedAuditor || !selectedAuditor.user_id) {
+                    alert('请选择审核员');
+                    $('#auditor-select').focus();
+                    return;
+                }
+                
+                // 时间区间验证
+                if ($('#schedule-enabled').is(':checked')) {
+                    const startTime = $('#schedule-start-time').val();
+                    const endTime = $('#schedule-end-time').val();
+                    
+                    // 解析时间
+                    const [startHour, startMinute] = startTime.split(':').map(Number);
+                    const [endHour, endMinute] = endTime.split(':').map(Number);
+                    
+                    // 计算时间差（分钟）
+                    const startTotalMinutes = startHour * 60 + startMinute;
+                    const endTotalMinutes = endHour * 60 + endMinute;
+                    const timeDiff = endTotalMinutes - startTotalMinutes;
+                    
+                    // 验证时间区间
+                    if (timeDiff <= 0) {
+                        alert('结束时间必须晚于开始时间');
+                        $('#schedule-end-time').focus();
+                        return;
+                    }
+                    
+                    // 限制时间区间最大为2小时（120分钟）
+                    const maxTimeDiff = 120;
+                    if (timeDiff > maxTimeDiff) {
+                        alert(`时间区间不能超过${maxTimeDiff}分钟（2小时）`);
+                        $('#schedule-end-time').focus();
+                        return;
+                    }
+                }
+                
+                // 收集表单数据
+                const formData = {
+                    remark_name: remarkName,
+                    keep_username: keepUsername,
+                    qq_number: qqNumber,
+                    course_url: $('#hidden-course-url').val(),
+                    form_id: $('#hidden-form-id').val(),
+                    users: JSON.parse($('#hidden-users').val() || '[]'),
+                    selected_auditor: selectedAuditor,
+                    cookie: $('#hidden-cookie').val(),
+                    schedule_enabled: $('#schedule-enabled').is(':checked'),
+                    schedule_start_time: $('#schedule-start-time').val(),
+                    schedule_end_time: $('#schedule-end-time').val(),
+                    schedule_days: JSON.parse($('#schedule-days').val() || '[]')
+                };
+                
+                // 显示加载状态
+                $(this).find('button').prop('disabled', true);
+                $('#extra-info-loading').show();
+                $('#submit-result').hide();
+                
+                // 发送AJAX请求提交额外信息
+                $.ajax({
+                    url: '/submit_extra_info',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify(formData),
+                    success: function(response) {
+                        if (response.success) {
+                            // 显示成功信息
+                            $('#result-message').removeClass('alert-danger').addClass('alert-success');
+                            $('#result-message').text('信息提交成功！');
+                            
+                            // 调用reload接口更新定时任务
+                            if (formData.schedule_enabled) {
+                                $.ajax({
+                                    url: '/api/schedule/reload',
+                                    type: 'GET',
+                                    success: function(reloadResponse) {
+                                        if (reloadResponse.success) {
+                                            console.log('定时任务配置已更新');
+                                        }
+                                    },
+                                    error: function() {
+                                        console.log('更新定时任务配置失败');
+                                    }
+                                });
+                            }
+                        } else {
+                            // 显示错误信息
+                            $('#result-message').removeClass('alert-success').addClass('alert-danger');
+                            $('#result-message').text('信息提交失败：' + (response.message || '未知错误'));
+                        }
+                        $('#submit-result').show();
+                    },
+                    error: function() {
+                        // 显示错误信息
+                        $('#result-message').removeClass('alert-success').addClass('alert-danger');
+                        $('#result-message').text('信息提交失败，请稍后重试');
+                        $('#submit-result').show();
+                    },
+                    complete: function() {
+                        // 隐藏加载状态
+                        $('#extra-info-form').find('button').prop('disabled', false);
+                        $('#extra-info-loading').hide();
+                    }
+                });
+            });
+            
+            // 删除提交内容按钮点击事件
+            $('#delete-submission-btn').click(function() {
+                if (confirm('确定要删除之前的提交内容吗？此操作不可恢复。')) {
+                    // 显示加载状态
+                    $(this).prop('disabled', true);
+                    
+                    // 发送AJAX请求删除提交内容
+                    $.ajax({
+                        url: '/delete_submission',
+                        type: 'POST',
+                        success: function(response) {
+                            if (response.success) {
+                                alert('提交内容已成功删除，可以重新填写。');
+                                // 重置表单
+                                $('#extra-info-form')[0].reset();
+                                $('#submit-result').hide();
+                                // 重新加载凭证信息
+                                loadCredentialInfo();
+                            } else {
+                                alert('删除失败：' + (response.message || '未知错误'));
+                            }
+                        },
+                        error: function() {
+                            alert('删除失败，请稍后重试');
+                        },
+                        complete: function() {
+                            // 隐藏加载状态
+                            $('#delete-submission-btn').prop('disabled', false);
+                        }
+                    });
+                }
+            });
+        });
+    </script>
+</body>
+</html>

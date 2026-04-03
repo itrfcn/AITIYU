@@ -393,7 +393,12 @@ def run_keepsultan(output_dir="images", username="", avatar=None, generate_new_m
                 username=username,
                 date=None,
                 end_time=None,
-                seed=None
+                seed=None,
+                location=None,
+                weather=None,
+                temperature=None,
+                map_bg_path=None,
+                map_mask_path=None
             )
             
             # 设置随机种子（如果有）
@@ -501,12 +506,16 @@ def run_integrated_script(cookie, image_path, form_data_b, course_url=None, defa
         return False
 
 
-def main():
+def main(args=None):
     """
     主函数，运行完整工作流
+    
+    参数:
+        args: 可选，命令行参数对象。如果不提供，将从命令行解析
     """
     # 解析命令行参数
-    args = parse_args()
+    if args is None:
+        args = parse_args()
     
     # 获取最终配置（从JSON文件和命令行参数）
     users_config, global_config = get_config_from_args(args)

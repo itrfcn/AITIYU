@@ -4,11 +4,10 @@
 Name: KeepSultan.py
 About: 生成Keep跑步截图
 OriginalAuthor: Carzit
-Github: https://github.com/Carzit/KeepSultan/
 
-Modified by LynxFrost  https://blog.itrf.cn
+Modified by LynxFrost  
 
-基于KeepSultan修改，添加keep原生字体支持，添加天气api调用自动获取天气信息
+基于KeepSultan修改，添加天气api调用自动获取天气信息
 
 
 """
@@ -32,6 +31,8 @@ from urllib.parse import urlparse, quote
 from urllib.request import urlopen, Request
 
 from PIL import Image, ImageDraw, ImageFont
+
+# 地图生成模块将在需要时动态导入
 
 # ------------------------------
 # 类型与工具
@@ -182,16 +183,26 @@ class KeepConfig:
     """
     # 资源
     template: str = "src/template.png"
-    map: str = "src/map.png"
+    map: str = "src/map.png"  # 备用的静态地图
     avatar: str = "src/avatar.png"
     username: str = "用户"
+    
+    # 轨迹生成配置
+    map_bg_path: str = "src/map1.png"  # 地图背景图片路径
+    map_mask_path: str = "src/map2.png"  # 路径掩码图片路径
+    track_color: tuple = (154, 201, 38)  # 轨迹颜色，BGR格式
+    track_thickness: int = 12  # 轨迹线条厚度
+    track_sample_rate: int = 5  # 路径点采样率
+    track_max_steps: int = 3000  # 最大步数限制
+    track_completion_threshold: float = 0.2  # 路径完成度阈值
+    track_target_length: int = 400  # 目标路径长度
     
     # 时间、日期、天气等信息，支持特殊值自动填充
     date: str = "today"  # 默认留空，运行时自动填充今天
     end_time: TimeStr = "now"  # 默认留空，运行时自动填充当前时间
     location: str = "高密"  # 可选，默认为高密
-    weather: str = "多云"  # 可选，默认为多云
-    temperature: str = "20°C" # 可选，默认为20℃
+    weather: str = "auto"  # 可选，"auto"表示自动获取，其他值表示自定义
+    temperature: str = "auto" # 可选，"auto"表示自动获取，其他值表示自定义
 
     # 指标区间（与原始脚本保持一致）
     total_km: NumberRange = field(default_factory=lambda: NumberRange(3.02, 3.30, precision=2))
@@ -210,9 +221,12 @@ class KeepConfig:
     def __post_init__(self) -> None:
         """
         初始化后处理：从天气API获取最新的天气和温度数据。
+        
+        注意：当通过from_json方法创建实例时，这个方法会在配置加载之前调用，
+        所以需要在from_json方法中手动调用fetch_weather_data来更新天气数据。
         """
-        # 从API获取天气数据，使用location字段作为城市名
-        self.weather, self.temperature = fetch_weather_data(self.location)
+        # 只在直接创建实例时获取天气数据
+        pass
 
     @staticmethod
     def from_json(path: Union[str, Path]) -> "KeepConfig":
@@ -254,7 +268,7 @@ class KeepConfig:
                 return default
 
         for k, v in raw.items():
-            if k in {"template", "map", "avatar", "username", "date", "end_time"}:
+            if k in {"template", "map", "avatar", "username", "date", "end_time", "location", "weather", "temperature"}:
                 setattr(base, k, str(v))
             elif k == "total_km":
                 base.total_km = _nr(v, base.total_km)
@@ -285,6 +299,11 @@ class KeepConfig:
                 base.font_clock = TextStyle(v.get("font_path", base.font_clock.font_path),
                                             int(v.get("font_size", base.font_clock.font_size)),
                                             tuple(v.get("color", base.font_clock.color)))  # type: ignore
+
+        # 在配置加载完成后，根据location获取天气数据
+        # 只有当weather或temperature为"auto"时才获取，这样用户可以自定义天气信息
+        if base.weather == "auto" or base.temperature == "auto":
+            base.weather, base.temperature = fetch_weather_data(base.location)
 
         return base
 
@@ -337,8 +356,12 @@ class AssetLoader:
             return Image.open(cp).convert("RGBA")
         else:
             p = Path(path_or_url)
-            if (not p.exists()) or (not p.is_file()):
-                raise FileNotFoundError(f"Image not found: {path_or_url}")
+            # 如果路径不存在，尝试将其解析为相对于脚本所在目录的路径
+            if not (p.exists() and p.is_file()):
+                script_dir = Path(__file__).parent
+                p = script_dir / path_or_url
+                if not (p.exists() and p.is_file()):
+                    raise FileNotFoundError(f"Image not found: {path_or_url}")
             return Image.open(p).convert("RGBA")
 
 # ------------------------------
@@ -362,7 +385,12 @@ class ImageEditor:
         if self.img is None:
             raise RuntimeError("Base image not loaded")
         draw = ImageDraw.Draw(self.img)
-        font = ImageFont.truetype(style.font_path, style.font_size)
+        font_path = style.font_path
+        # 如果字体路径不存在，尝试将其解析为相对于脚本所在目录的路径
+        if not Path(font_path).exists():
+            script_dir = Path(__file__).parent
+            font_path = str(script_dir / font_path)
+        font = ImageFont.truetype(font_path, style.font_size)
         draw.text(position, text, fill=style.color, font=font)
 
     def save(self, path: Union[str, Path]) -> None:
@@ -448,11 +476,33 @@ class KeepSultanApp:
             avatar_img = make_circular_avatar(avatar_raw, (100, 100))
             self.editor.paste(avatar_img, (40, 250))
 
-        # 3) 地图（允许为空）
-        if self.cfg.map:
-            map_raw = self.assets.load_image(self.cfg.map)
-            map_img = resize_keep_alpha(map_raw, (1000, 800))
+        # 3) 地图（动态生成或使用静态地图）
+        try:
+            # 尝试使用map.py生成动态轨迹地图
+            import map as map_generator
+            map_img = map_generator.generate_keep_style_path(
+                bg_path=self.cfg.map_bg_path,
+                path_mask_path=self.cfg.map_mask_path,
+                track_color=self.cfg.track_color,
+                thickness=self.cfg.track_thickness,
+                sample_rate=self.cfg.track_sample_rate,
+                max_steps=self.cfg.track_max_steps,
+                completion_threshold=self.cfg.track_completion_threshold,
+                target_length=self.cfg.track_target_length
+            )
+            # 调整地图大小并保持透明度
+            map_img = resize_keep_alpha(map_img, (1000, 800))
             self.editor.paste(map_img, (40, 720))
+        except Exception as e:
+            # 如果动态生成失败，使用静态地图作为备用
+            self.logger.warning(f"Failed to generate dynamic map: {e}, using static map instead")
+            if self.cfg.map:
+                try:
+                    map_raw = self.assets.load_image(self.cfg.map)
+                    map_img = resize_keep_alpha(map_raw, (1000, 800))
+                    self.editor.paste(map_img, (40, 720))
+                except Exception as e2:
+                    self.logger.error(f"Failed to load static map: {e2}")
 
         # 4) 随机/计算指标
         if self.cfg.date == "today":
@@ -522,6 +572,11 @@ def build_argparser() -> argparse.ArgumentParser:
     p.add_argument("--username", type=str, help="用户名")
     p.add_argument("--date", type=str, help="日期（YYYY/MM/DD），留空自动填充今天")
     p.add_argument("--end-time", dest="end_time", type=str, help="结束时间（HH:MM 或 HH:MM:SS），留空自动填充当前时间")
+    p.add_argument("--location", type=str, help="地点信息")
+    p.add_argument("--weather", type=str, help="天气信息")
+    p.add_argument("--temperature", type=str, help="温度信息")
+    p.add_argument("--map-bg-path", dest="map_bg_path", type=str, help="地图背景图片路径")
+    p.add_argument("--map-mask-path", dest="map_mask_path", type=str, help="路径掩码图片路径")
     p.add_argument("--seed", type=int, help="随机种子（可复现）")
     return p
 
@@ -533,6 +588,11 @@ def apply_overrides(cfg: KeepConfig, ns: argparse.Namespace) -> KeepConfig:
     if ns.username: cfg.username = ns.username
     if ns.date: cfg.date = ns.date
     if ns.end_time: cfg.end_time = ns.end_time
+    if ns.location: cfg.location = ns.location
+    if ns.weather: cfg.weather = ns.weather
+    if ns.temperature: cfg.temperature = ns.temperature
+    if ns.map_bg_path: cfg.map_bg_path = ns.map_bg_path
+    if ns.map_mask_path: cfg.map_mask_path = ns.map_mask_path
     return cfg
 
 def main() -> None:

@@ -6,6 +6,15 @@ import re
 import time
 import uuid
 import urllib.parse
+import schedule_manager
+import logging
+
+# 配置日志
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
@@ -106,7 +115,7 @@ def load_submissions():
         with open(SUBMISSIONS_FILE, 'r', encoding='utf-8') as f:
             return json.load(f)
     except Exception as e:
-        print(f"加载提交内容文件失败: {e}")
+        logger.error(f"加载提交内容文件失败: {e}")
         return {}
 
 # 保存提交内容
@@ -117,7 +126,7 @@ def save_submissions(submissions):
             json.dump(submissions, f, ensure_ascii=False, indent=4)
         return True
     except Exception as e:
-        print(f"保存提交内容文件失败: {e}")
+        logger.error(f"保存提交内容文件失败: {e}")
         return False
 
 # 保存用户提交内容
@@ -154,7 +163,7 @@ def load_credentials():
         with open(CREDENTIALS_FILE, 'r', encoding='utf-8') as f:
             return json.load(f)
     except Exception as e:
-        print(f"加载凭证文件失败: {e}")
+        logger.error(f"加载凭证文件失败: {e}")
         return []
 
 # 保存凭证
@@ -165,7 +174,7 @@ def save_credentials(credentials):
             json.dump(credentials, f, ensure_ascii=False, indent=4)
         return True
     except Exception as e:
-        print(f"保存凭证文件失败: {e}")
+        logger.error(f"保存凭证文件失败: {e}")
         return False
 
 # 验证凭证
@@ -191,8 +200,8 @@ def reset_credential(credential):
 
 
 # 会话配置
-SESSION_TIMEOUT = 600  # 会话超时时间（秒）
-MAX_SESSIONS = 100     # 最大会话数量
+SESSION_TIMEOUT = 120  # 会话超时时间（秒）
+MAX_SESSIONS = 100  # 最大会话数量
 
 # 清理过期会话
 def cleanup_sessions():
@@ -205,8 +214,10 @@ def cleanup_sessions():
             expired_sessions.append(session_id)
     
     # 删除过期会话
-    for session_id in expired_sessions:
-        del server_sessions[session_id]
+    if expired_sessions:
+        logger.info(f"清理 {len(expired_sessions)} 个过期会话")
+        for session_id in expired_sessions:
+            del server_sessions[session_id]
 
 # 微信登录相关配置
 BASE_URL = "https://login.b8n.cn/qr/weixin/student/2"
@@ -343,6 +354,7 @@ def get_qr_code():
         # 使用可靠的备用二维码生成服务（qrserver）
         qrcode_url = f"https://api.qrserver.com/v1/create-qr-code/?size=300x300&data={encoded_url}"
         
+        logger.info(f"新会话创建成功: {session_id}")
         return jsonify({
             'success': True,
             'session_id': session_id,
@@ -397,6 +409,7 @@ def check_login(session_id):
     cleanup_sessions()
     
     if session_id not in server_sessions:
+        logger.warning(f"会话不存在或已过期: {session_id}")
         return jsonify({
             'success': False,
             'message': '会话不存在或已过期'
@@ -428,10 +441,18 @@ def check_login(session_id):
         session_data['cookie'] = cookie
         server_sessions[session_id] = session_data
         
+        logger.info(f"用户登录成功: {session_id}")
         return jsonify({
         'success': True,
         'logged_in': True,
         'cookie': cookie
+    })
+    
+    # 用户还未扫码登录，返回正常状态（不是错误）
+    return jsonify({
+        'success': True,
+        'logged_in': False,
+        'message': '等待扫码登录'
     })
 
 # 获取课程信息的函数
@@ -511,8 +532,6 @@ def access_course_page(course_url, remember_cookie, verbose=True):
             form_input = soup.find('input', {'name': 'form_id', 'type': 'hidden'})
             if form_input:
                 form_id = form_input.get('value')
-                if verbose:
-                    print(f"[成功] 提取到表单ID: {form_id}")
         
         except ImportError:
             error_message = "未安装BeautifulSoup4，无法提取用户信息和表单ID"
@@ -685,19 +704,7 @@ def submit_extra_info():
                 'message': '您已经提交过信息，请先删除之前的提交内容再重新提交'
             })
         
-        # 打印信息到控制台（用于调试）
-        print("\n=== 额外信息提交 ===")
-        print(f"凭证: {current_credential}")
-        print(f"备注name: {all_info['remark_name']}")
-        print(f"keep名称: {all_info['keep_username']}")
-        print(f"QQ号: {all_info['qq_number']}")
-        print(f"QQ头像: {all_info['qq_avatar']}")
-        print(f"课程URL: {all_info['course_url']}")
-        print(f"表单ID: {all_info['form_id']}")
-        print(f"审核员数量: {len(all_info['users'])}")
-        if all_info['selected_auditor']:
-            print(f"选中的审核员: {all_info['selected_auditor'].get('name')} (ID: {all_info['selected_auditor'].get('user_id')})")
-        print("==================")
+        # 处理额外信息提交
         
         # 保存数据到JSON文件（传递凭证用于命名）
         save_success, result = save_data_to_json(all_info, current_credential)
@@ -753,7 +760,6 @@ def delete_submission():
             # 删除数据文件（如果存在）
             if os.path.exists(data_file_path):
                 os.remove(data_file_path)
-                print(f"已删除数据文件: {data_file_path}")
             
             # 删除提交记录
             delete_success = delete_user_submission(current_credential)
@@ -806,10 +812,9 @@ def reload_schedule():
 if __name__ == '__main__':
     # 启动定时任务管理器
     try:
-        import schedule_manager
         schedule_manager.start_scheduler()
-        print("定时任务管理器已启动")
+        logger.info("定时任务管理器已启动")
     except Exception as e:
-        print(f"启动定时任务管理器失败: {e}")
+        logger.error(f"启动定时任务管理器失败: {e}")
     
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=False, host='0.0.0.0', port=5000,use_reloader=False)

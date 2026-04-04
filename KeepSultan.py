@@ -323,9 +323,26 @@ class AssetLoader:
     图片资源加载器：支持本地路径与 HTTP(S) URL。
     远端资源会按 URL 的 MD5 命中本地缓存，避免重复下载。
     """
-    def __init__(self, cache_dir: Union[str, Path] = ".keepsultan_cache") -> None:
-        self.cache_dir = Path(cache_dir)
-        self.cache_dir.mkdir(parents=True, exist_ok=True)
+    def __init__(self, cache_dir: Union[str, Path] = None) -> None:
+        # 默认使用应用目录下的 cache 文件夹
+        if cache_dir is None:
+            script_dir = Path(__file__).parent
+            self.cache_dir = script_dir / "cache"
+        else:
+            self.cache_dir = Path(cache_dir)
+        
+        # 确保缓存目录存在，并设置正确的权限
+        try:
+            # 创建目录，设置权限为 755
+            self.cache_dir.mkdir(parents=True, exist_ok=True)
+            # 尝试设置权限（在某些系统上可能需要）
+            import os
+            os.chmod(self.cache_dir, 0o755)
+        except Exception as e:
+            # 如果创建失败，使用系统临时目录
+            import tempfile
+            self.cache_dir = Path(tempfile.gettempdir()) / "keepsultan_cache"
+            self.cache_dir.mkdir(parents=True, exist_ok=True)
 
     def _is_url(self, path: str) -> bool:
         scheme = urlparse(path).scheme.lower()
@@ -350,9 +367,24 @@ class AssetLoader:
             cp = self._cache_path_for_url(path_or_url)
             if not cp.exists():
                 req = Request(path_or_url, headers={"User-Agent": "KeepSultan/1.0"})
-                with urlopen(req, timeout=30) as r:
-                    content = r.read()
-                cp.write_bytes(content)
+                try:
+                    with urlopen(req, timeout=30) as r:
+                        content = r.read()
+                    # 尝试写入缓存
+                    try:
+                        # 确保父目录存在
+                        cp.parent.mkdir(parents=True, exist_ok=True)
+                        # 写入文件
+                        cp.write_bytes(content)
+                        # 尝试设置文件权限
+                        import os
+                        os.chmod(cp, 0o644)
+                    except PermissionError:
+                        # 如果写入失败，使用内存中的数据
+                        from io import BytesIO
+                        return Image.open(BytesIO(content)).convert("RGBA")
+                except Exception as e:
+                    raise Exception(f"Failed to download image: {str(e)}")
             return Image.open(cp).convert("RGBA")
         else:
             p = Path(path_or_url)

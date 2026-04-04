@@ -87,7 +87,8 @@
                             <ol>
                                 <li>获取二维码，扫码登录</li>
                                 <li>填写相关信息，请确保信息准确</li>
-                                <li>选择提交时间，不选择默认为20：30 </li>
+                                <li>启用定时任务，设置提交时间点</li>
+                                <li>不启用定时任务，默认20-21之间提交</li>
                                 <li>点击"提交信息"按钮完成提交</li>
                             </ol>
                         </div>
@@ -122,9 +123,9 @@
                             <p>使用前须知，使用本系统就表示同意以下条款：</p>
                             <ol>
                                 <li>你可以根据需要自定义提交时间</li>
-                                <li>不选择提交时间，默认在20：30 自动提交</li>
+                                <li>不启用定时任务，默认20-21之间提交</li>
                                 <li>系统仅供学习使用，请勿用于违规用途</li>
-                                <li>你需要对自己的操作负责，本站不承担任何责任</li>
+                                <li>你需要对自己的行为负责，本站不承担任何责任</li>
                             </ol>
                         </div>
                     </div>
@@ -228,12 +229,12 @@
                         <div class="mb-3">
                             <label class="form-label">执行时间区间：</label>
                             <div class="row">
-                                <div class="col-6">
-                                    <input type="time" class="form-control" id="schedule-start-time" name="schedule_start_time" value="08:00">
+                                <div class="col-12 col-md-6">
+                                    <input type="time" class="form-control" id="schedule-start-time" name="schedule_start_time" value="00:00">
                                     <small class="form-text text-muted">开始时间</small>
                                 </div>
-                                <div class="col-6">
-                                    <input type="time" class="form-control" id="schedule-end-time" name="schedule_end_time" value="09:00">
+                                <div class="col-12 col-md-6">
+                                    <input type="time" class="form-control" id="schedule-end-time" name="schedule_end_time" value="00:10">
                                     <small class="form-text text-muted">结束时间</small>
                                 </div>
                             </div>
@@ -242,22 +243,22 @@
                         <div class="mb-3">
                             <label class="form-label">执行日期：</label>
                             <div class="row">
-                                <div class="col-7">
-                                    <div class="btn-group" role="group" aria-label="执行日期选择">
-                                        <button type="button" class="btn btn-outline-primary day-btn" data-day="1">周一</button>
-                                        <button type="button" class="btn btn-outline-primary day-btn" data-day="2">周二</button>
-                                        <button type="button" class="btn btn-outline-primary day-btn" data-day="3">周三</button>
-                                        <button type="button" class="btn btn-outline-primary day-btn" data-day="4">周四</button>
-                                        <button type="button" class="btn btn-outline-primary day-btn" data-day="5">周五</button>
-                                        <button type="button" class="btn btn-outline-primary day-btn" data-day="6">周六</button>
-                                        <button type="button" class="btn btn-outline-primary day-btn" data-day="7">周日</button>
+                                <div class="col-12 col-md-7">
+                                    <div class="btn-group d-flex flex-wrap" role="group" aria-label="执行日期选择">
+                                        <button type="button" class="btn btn-outline-primary day-btn flex-grow-1" data-day="1">周一</button>
+                                        <button type="button" class="btn btn-outline-primary day-btn flex-grow-1" data-day="2">周二</button>
+                                        <button type="button" class="btn btn-outline-primary day-btn flex-grow-1" data-day="3">周三</button>
+                                        <button type="button" class="btn btn-outline-primary day-btn flex-grow-1" data-day="4">周四</button>
+                                        <button type="button" class="btn btn-outline-primary day-btn flex-grow-1" data-day="5">周五</button>
+                                        <button type="button" class="btn btn-outline-primary day-btn flex-grow-1" data-day="6">周六</button>
+                                        <button type="button" class="btn btn-outline-primary day-btn flex-grow-1" data-day="7">周日</button>
                                     </div>
                                 </div>
-                                <div class="col-5">
-                                    <div class="btn-group" role="group" aria-label="快捷选择">
-                                        <button type="button" class="btn btn-outline-secondary" id="select-all-days">全选</button>
-                                        <button type="button" class="btn btn-outline-secondary" id="select-weekdays">工作日</button>
-                                        <button type="button" class="btn btn-outline-secondary" id="select-weekends">周末</button>
+                                <div class="col-12 col-md-5 mt-2 mt-md-0">
+                                    <div class="btn-group d-flex flex-wrap" role="group" aria-label="快捷选择">
+                                        <button type="button" class="btn btn-outline-secondary flex-grow-1" id="select-all-days">全选</button>
+                                        <button type="button" class="btn btn-outline-secondary flex-grow-1" id="select-weekdays">工作日</button>
+                                        <button type="button" class="btn btn-outline-secondary flex-grow-1" id="select-weekends">周末</button>
                                     </div>
                                 </div>
                             </div>
@@ -293,7 +294,13 @@
                     type: 'GET',
                     success: function(response) {
                         if (response.success) {
-                            $('#credential-info').text('凭证: ' + response.credential);
+                            let statusText = '凭证: ' + response.credential;
+                            if (response.has_submission) {
+                                statusText += ' <span class="badge bg-success ms-2">已提交</span>';
+                            } else {
+                                statusText += ' <span class="badge bg-warning ms-2">未提交</span>';
+                            }
+                            $('#credential-info').html(statusText);
                         } else {
                             $('#credential-info').text('已登录');
                         }
@@ -439,32 +446,50 @@
             
             // 日期选择按钮点击事件
             $('.day-btn').click(function() {
-                $(this).toggleClass('active btn-primary');
+                if ($(this).hasClass('active')) {
+                    // 取消选择
+                    $(this).removeClass('active btn-primary');
+                    $(this).addClass('btn-outline-primary');
+                } else {
+                    // 选择
+                    $(this).addClass('active btn-primary');
+                    $(this).removeClass('btn-outline-primary');
+                }
                 updateScheduleDays();
             });
             
             // 全选按钮点击事件
             $('#select-all-days').click(function() {
                 $('.day-btn').addClass('active btn-primary');
+                $('.day-btn').removeClass('btn-outline-primary');
                 updateScheduleDays();
             });
             
             // 工作日按钮点击事件
             $('#select-weekdays').click(function() {
-                $('.day-btn').removeClass('active btn-primary');
+                $('.day-btn').removeClass('active btn-primary btn-outline-primary');
+                $('.day-btn').addClass('btn-outline-primary');
                 $('.day-btn[data-day="1"]').addClass('active btn-primary');
+                $('.day-btn[data-day="1"]').removeClass('btn-outline-primary');
                 $('.day-btn[data-day="2"]').addClass('active btn-primary');
+                $('.day-btn[data-day="2"]').removeClass('btn-outline-primary');
                 $('.day-btn[data-day="3"]').addClass('active btn-primary');
+                $('.day-btn[data-day="3"]').removeClass('btn-outline-primary');
                 $('.day-btn[data-day="4"]').addClass('active btn-primary');
+                $('.day-btn[data-day="4"]').removeClass('btn-outline-primary');
                 $('.day-btn[data-day="5"]').addClass('active btn-primary');
+                $('.day-btn[data-day="5"]').removeClass('btn-outline-primary');
                 updateScheduleDays();
             });
             
             // 周末按钮点击事件
             $('#select-weekends').click(function() {
-                $('.day-btn').removeClass('active btn-primary');
+                $('.day-btn').removeClass('active btn-primary btn-outline-primary');
+                $('.day-btn').addClass('btn-outline-primary');
                 $('.day-btn[data-day="6"]').addClass('active btn-primary');
+                $('.day-btn[data-day="6"]').removeClass('btn-outline-primary');
                 $('.day-btn[data-day="7"]').addClass('active btn-primary');
+                $('.day-btn[data-day="7"]').removeClass('btn-outline-primary');
                 updateScheduleDays();
             });
             
@@ -478,6 +503,7 @@
             }
             
             // 初始化日期选择（默认全选）
+            $('.day-btn').removeClass('btn-outline-primary');
             $('.day-btn').addClass('active btn-primary');
             updateScheduleDays();
             
@@ -632,15 +658,24 @@
                     
                     // 验证时间区间
                     if (timeDiff <= 0) {
-                        alert('结束时间必须晚于开始时间');
-                        $('#schedule-end-time').focus();
-                        return;
+                        // 开始时间和结束时间相同，提示用户但不阻止
+                        if (timeDiff === 0) {
+                            const confirmSameTime = confirm('开始时间和结束时间相同，将在固定时间点执行。是否继续？');
+                            if (!confirmSameTime) {
+                                $('#schedule-end-time').focus();
+                                return;
+                            }
+                        } else {
+                            alert('结束时间必须晚于开始时间');
+                            $('#schedule-end-time').focus();
+                            return;
+                        }
                     }
                     
-                    // 限制时间区间最大为2小时（120分钟）
-                    const maxTimeDiff = 120;
+                    // 限制时间区间最大为1小时（60分钟）
+                    const maxTimeDiff = 60;
                     if (timeDiff > maxTimeDiff) {
-                        alert(`时间区间不能超过${maxTimeDiff}分钟（2小时）`);
+                        alert(`时间区间不能超过${maxTimeDiff}分钟（1小时）`);
                         $('#schedule-end-time').focus();
                         return;
                     }
@@ -678,6 +713,9 @@
                             // 显示成功信息
                             $('#result-message').removeClass('alert-danger').addClass('alert-success');
                             $('#result-message').text('信息提交成功！');
+                            
+                            // 更新凭证信息显示状态
+                            loadCredentialInfo();
                             
                             // 调用reload接口更新定时任务
                             if (formData.schedule_enabled) {

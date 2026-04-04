@@ -192,8 +192,8 @@ def reset_credential(credential):
 
 
 # 会话配置
-SESSION_TIMEOUT = 600  # 会话超时时间（秒）
-MAX_SESSIONS = 100     # 最大会话数量
+SESSION_TIMEOUT = 120  # 会话超时时间（秒）
+MAX_SESSIONS = 100  # 最大会话数量
 
 # 清理过期会话
 def cleanup_sessions():
@@ -435,10 +435,11 @@ def check_login(session_id):
         'cookie': cookie
     })
     
-    # 兜底返回，防止500错误
+    # 用户还未扫码登录，返回正常状态（不是错误）
     return jsonify({
-        'success': False,
-        'message': '登录状态检查失败'
+        'success': True,
+        'logged_in': False,
+        'message': '等待扫码登录'
     })
 
 # 获取课程信息的函数

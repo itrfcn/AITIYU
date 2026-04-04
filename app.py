@@ -6,6 +6,7 @@ import re
 import time
 import uuid
 import urllib.parse
+import schedule_manager
 
 app = Flask(__name__)
 
@@ -812,7 +813,6 @@ def reload_schedule():
 if __name__ == '__main__':
     # 启动定时任务管理器
     try:
-        import schedule_manager
         schedule_manager.start_scheduler()
         print("定时任务管理器已启动")
     except Exception as e:

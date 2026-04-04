@@ -205,6 +205,10 @@ class ScheduleManager:
             
     def load_user_configs(self):
         """加载所有用户配置并更新定时任务"""
+        # 确保调度器已初始化
+        if not self.scheduler:
+            self.init_scheduler()
+        
         # 清理过期的时间槽记录
         self._cleanup_old_time_slots()
         
@@ -214,8 +218,10 @@ class ScheduleManager:
             return
 
         # 获取当前所有"母任务"ID（排除掉正在排队的临时随机任务和reload任务）
-        current_job_ids = set(job.id for job in self.scheduler.get_jobs() 
-                            if not job.id.startswith('exec_') and job.id != 'reload_configs')
+        current_job_ids = set()
+        if self.scheduler:
+            current_job_ids = set(job.id for job in self.scheduler.get_jobs() 
+                                if not job.id.startswith('exec_') and job.id != 'reload_configs')
         
         new_job_ids = set()
         
@@ -278,6 +284,10 @@ class ScheduleManager:
 
     def add_user_job(self, job_id, user_config):
         """添加用户任务"""
+        # 确保调度器已初始化
+        if not self.scheduler:
+            self.init_scheduler()
+        
         try:
             trigger = self._build_cron_trigger(user_config)
             self.scheduler.add_job(
@@ -299,6 +309,10 @@ class ScheduleManager:
         保底任务在 20:00-21:00 区间内随机执行，确保用户不会错过提交
         使用智能时间分散算法，避免多个用户同时执行
         """
+        # 确保调度器已初始化
+        if not self.scheduler:
+            self.init_scheduler()
+        
         try:
             # 保底任务在 20:00-21:00 区间内随机执行
             fallback_start_time = "20:00"
@@ -328,6 +342,10 @@ class ScheduleManager:
             
     def update_user_job(self, job_id, user_config):
         """更新用户任务（支持定时任务和保底任务之间的切换）"""
+        # 确保调度器已初始化
+        if not self.scheduler:
+            self.init_scheduler()
+        
         try:
             job = self.scheduler.get_job(job_id)
             if job:
@@ -354,6 +372,10 @@ class ScheduleManager:
         
         对于保底任务（未开启定时任务），在 20:00-21:00 区间内随机执行
         """
+        # 确保调度器已初始化
+        if not self.scheduler:
+            self.init_scheduler()
+        
         try:
             # 参数验证
             if not user_config or not isinstance(user_config, dict):
@@ -474,6 +496,11 @@ class ScheduleManager:
 
     def get_jobs_info(self):
         """获取所有任务信息"""
+        # 确保调度器已初始化
+        if not self.scheduler:
+            self.init_scheduler()
+            self.start()
+        
         jobs_info = []
         for job in self.scheduler.get_jobs():
             if job.id != 'reload_configs':
@@ -487,6 +514,11 @@ class ScheduleManager:
         
     def get_job_info(self, job_id):
         """获取指定任务信息"""
+        # 确保调度器已初始化
+        if not self.scheduler:
+            self.init_scheduler()
+            self.start()
+        
         job = self.scheduler.get_job(job_id)
         if job:
             return {

@@ -433,6 +433,12 @@ def check_login(session_id):
         'logged_in': True,
         'cookie': cookie
     })
+    
+    # 兜底返回，防止500错误
+    return jsonify({
+        'success': False,
+        'message': '登录状态检查失败'
+    })
 
 # 获取课程信息的函数
 def access_course_page(course_url, remember_cookie, verbose=True):
@@ -812,4 +818,4 @@ if __name__ == '__main__':
     except Exception as e:
         print(f"启动定时任务管理器失败: {e}")
     
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=False, host='0.0.0.0', port=5000,use_reloader=False)

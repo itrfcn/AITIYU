@@ -463,8 +463,12 @@ class ScheduleManager:
             # 清理临时任务
             if exec_job_id:
                 try:
-                    self.scheduler.remove_job(exec_job_id)
-                    logger.info(f"已清理临时任务: {exec_job_id}")
+                    # 检查任务是否存在
+                    if self.scheduler.get_job(exec_job_id):
+                        self.scheduler.remove_job(exec_job_id)
+                        logger.info(f"已清理临时任务: {exec_job_id}")
+                    else:
+                        logger.debug(f"临时任务已自动清理: {exec_job_id}")
                 except Exception as e:
                     logger.warning(f"清理临时任务失败: {e}")
 

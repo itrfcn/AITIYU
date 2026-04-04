@@ -108,8 +108,8 @@ def generate_new_map(output_dir="src/map", map_name=None):
         None: 如果生成失败
     """
     try:
-        # 生成带时间戳的文件名
-        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        # 生成带时间戳的文件名（包含微秒，确保多线程环境下唯一性）
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
         if map_name is None:
             map_name = f"keep_map_{timestamp}.png"
         
@@ -346,8 +346,8 @@ def run_keepsultan(output_dir="images", username="", avatar=None, generate_new_m
         None: 如果生成失败
     """
     try:
-        # 生成带时间戳的文件名
-        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        # 生成带时间戳的文件名（包含微秒，确保多线程环境下唯一性）
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
         output_path = os.path.join(output_dir, f"keep_run_{timestamp}.png")
         
         logger.info(f"执行KeepSultan生成图片: {output_path}")

@@ -394,15 +394,30 @@ class ScheduleManager:
             e_h, e_m = map(int, end_time.split(':'))
             total_minutes = (e_h * 60 + e_m) - (s_h * 60 + s_m)
             
-            # 限制时间区间最大值为2小时（120分钟）
-            max_minutes = 120
+            # 限制时间区间最大值为1小时（60分钟）
+            max_minutes = 60
             if total_minutes > max_minutes:
                 logger.warning(f"时间区间过长（{total_minutes}分钟），已限制为{max_minutes}分钟")
                 total_minutes = max_minutes
             
             if total_minutes <= 0:
-                # 区间无效则立即执行
-                self.run_user_task(user_config)
+                # 开始时间和结束时间相同，在固定时间点执行
+                user_name = user_config.get('name', 'unknown')
+                today = datetime.now().date()
+                run_time = datetime(today.year, today.month, today.day, s_h, s_m, 0)
+                
+                # 添加一个临时的一次性任务 ID
+                exec_job_id = f"exec_{user_name}_{int(run_time.timestamp())}"
+                
+                self.scheduler.add_job(
+                    func=self.run_user_task,
+                    trigger=DateTrigger(run_date=run_time, timezone='Asia/Shanghai'),
+                    args=[user_config, exec_job_id],
+                    id=exec_job_id,
+                    name=f"固定时间执行: {user_name}",
+                    replace_existing=True
+                )
+                logger.info(f"固定时间任务已预约：用户 {user_name} 将在 {run_time.strftime('%H:%M:%S')} 执行")
                 return
             
             # 使用智能时间槽分配算法

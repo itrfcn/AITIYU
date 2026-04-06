@@ -776,11 +776,23 @@ def delete_submission():
             'message': f'处理请求时出错: {str(e)}'
         })
 
+# 管理密码配置
+MANAGE_PASSWORD = 'admin123'  # 可以根据需要修改
+
 # 定时任务管理API端点
 @app.route('/api/schedule/jobs', methods=['GET'])
 def get_schedule_jobs():
     """获取所有定时任务信息"""
     try:
+        # 管理密码验证
+        password = request.args.get('password')
+        
+        if password != MANAGE_PASSWORD:
+            return jsonify({
+                'success': False,
+                'message': '密码错误，无法访问任务信息'
+            })
+        
         manager = schedule_manager.get_schedule_manager()
         jobs_info = manager.get_jobs_info()
         return jsonify({
@@ -797,6 +809,17 @@ def get_schedule_jobs():
 def reload_schedule():
     """重新加载定时任务配置"""
     try:
+        # 检查是否已登录或提供了管理密码
+        is_logged_in = 'credential' in session
+        password = request.args.get('password')
+        
+        # 验证条件：已登录 OR 提供了正确的密码
+        if not (is_logged_in or password == MANAGE_PASSWORD):
+            return jsonify({
+                'success': False,
+                'message': '请登录或提供管理密码'
+            })
+        
         manager = schedule_manager.get_schedule_manager()
         manager.load_user_configs()
         return jsonify({

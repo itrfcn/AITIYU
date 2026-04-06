@@ -119,7 +119,8 @@ def fetch_weather_data(city: str = "高密市") -> Tuple[str, str]:
     try:
         # 对城市名进行URL编码
         encoded_city = quote(city)
-        url = f"https://api.bugpk.com/api/weather?city={encoded_city}"
+        # 使用wttr.in接口获取中文天气数据
+        url = f"https://wttr.in/{encoded_city}?format=j1&lang=zh&m"
         
         # 发送请求
         req = Request(url, headers={"User-Agent": "KeepSultan/1.0"})
@@ -128,12 +129,12 @@ def fetch_weather_data(city: str = "高密市") -> Tuple[str, str]:
         
         # 解析JSON响应
         data = json.loads(response)
-        if data.get("code") != 200:
-            raise ValueError(f"API returned error code: {data.get('code')}")
         
         # 提取天气和温度数据
-        weather_type = data["data"]["forecast"][0]["type"]
-        temperature = f"{data['data']['wendu']}℃"
+        current_condition = data["current_condition"][0]
+        # 使用中文天气描述
+        weather_type = current_condition["lang_zh"][0]["value"]
+        temperature = f"{current_condition['temp_C']}°C"
         
         return weather_type, temperature
     except Exception as e:

@@ -21,6 +21,14 @@ import string
 import argparse
 import hashlib
 import time
+import logging
+
+# 配置日志
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 
 # ========================== 配置参数 ==========================
@@ -90,14 +98,14 @@ def get_session_cookie(remember_cookie=None, course_url=COURSE_URL):
             s_cookie_match = re.search(r's=([^;]+);', cookie_header)
             if s_cookie_match:
                 s_cookie = f"s={s_cookie_match.group(1)}"
-                print(f"[OK] 成功获取session cookie: {s_cookie}")
+                logger.info(f"成功获取session cookie: {s_cookie}")
                 return s_cookie
         
-        print("[WARNING] 未找到s=部分的cookie")
+        logger.warning("未找到s=部分的cookie")
         return ""
         
     except requests.exceptions.RequestException as e:
-        print(f"[ERROR] 获取session cookie失败: {e}")
+        logger.error(f"获取session cookie失败: {e}")
         return ""
 
 # 定义获取OSS上传密钥的函数
@@ -145,11 +153,11 @@ def get_oss_key(cookies=None, course_url=COURSE_URL):
         
         # 解析响应
         oss_config = response.json()
-        print("[OK] 成功获取OSS上传密钥")
+        logger.info("成功获取OSS上传密钥")
         return oss_config
         
     except requests.exceptions.RequestException as e:
-        print(f"[ERROR] 获取OSS密钥失败: {e}")
+        logger.error(f"获取OSS密钥失败: {e}")
         return None
 
 # 生成唯一文件名的函数
@@ -185,19 +193,19 @@ def upload_image_to_oss(oss_config, image_path):
         成功返回文件信息字典，失败返回None
     """
     if not oss_config:
-        print("[ERROR] OSS配置无效，无法上传图片")
+        logger.error("OSS配置无效，无法上传图片")
         return None
     
     # 检查图片文件是否存在
     if not os.path.exists(image_path):
-        print(f"[ERROR] 图片文件不存在: {image_path}")
+        logger.error(f"图片文件不存在: {image_path}")
         return None
     
     # 检查文件是否为图片
     file_extension = os.path.splitext(image_path)[1].lower()
     if file_extension not in SUPPORTED_IMAGE_FORMATS:
-        print(f"[ERROR] 文件不是支持的图片格式: {file_extension}")
-        print(f"  支持的格式: {', '.join(SUPPORTED_IMAGE_FORMATS)}")
+        logger.error(f"文件不是支持的图片格式: {file_extension}")
+        logger.error(f"  支持的格式: {', '.join(SUPPORTED_IMAGE_FORMATS)}")
         return None
     
     # 获取OSS配置参数
@@ -234,31 +242,31 @@ def upload_image_to_oss(oss_config, image_path):
             }
             
             # 发送上传请求
-            print(f"[OK] 正在上传图片: {filename}")
-            print(f"  目标路径: {dir}/{filename}")
+            logger.info(f"正在上传图片: {filename}")
+            logger.info(f"  目标路径: {dir}/{filename}")
             response = requests.post(upload_url, data=form_data, files=files)
             response.raise_for_status()  # 检查请求是否成功
             
             # 打印响应信息
-            print(f"[OK] 上传成功！")
+            logger.info("上传成功！")
             if DEBUG:
-                print(f"  响应状态码: {response.status_code}")
+                logger.debug(f"  响应状态码: {response.status_code}")
             
             # 解析响应内容（如果是JSON格式）
             try:
                 response_json = response.json()
                 if DEBUG:
-                    print(f"  响应内容:")
-                    print(f"  - 成功: {response_json.get('success')}")
+                    logger.debug("  响应内容:")
+                    logger.debug(f"  - 成功: {response_json.get('success')}")
                     if response_json.get('data'):
                         data = response_json['data']
-                        print(f"  - 文件名称: {data.get('name')}")
-                        print(f"  - 文件大小: {data.get('size')} 字节")
-                        print(f"  - 文件类型: {data.get('type')}")
+                        logger.debug(f"  - 文件名称: {data.get('name')}")
+                        logger.debug(f"  - 文件大小: {data.get('size')} 字节")
+                        logger.debug(f"  - 文件类型: {data.get('type')}")
                 if response_json.get('data') and response_json['data'].get('file'):
                     data = response_json['data']
                     if DEBUG:
-                        print(f"  - 访问URL: {data.get('file')}")
+                        logger.debug(f"  - 访问URL: {data.get('file')}")
                     # 返回文件信息
                     return {
                         'name': data.get('name'),
@@ -268,7 +276,7 @@ def upload_image_to_oss(oss_config, image_path):
                     }
             except json.JSONDecodeError:
                 if DEBUG:
-                    print(f"  响应内容: {response.text}")
+                    logger.debug(f"  响应内容: {response.text}")
                 # 尝试从响应文本中提取文件信息
                 # 注意：这可能需要根据实际响应格式进行调整
                 return {
@@ -281,10 +289,10 @@ def upload_image_to_oss(oss_config, image_path):
             return None
             
     except requests.exceptions.RequestException as e:
-        print(f"[ERROR] 上传失败: {e}")
+        logger.error(f"上传失败: {e}")
         return None
     except Exception as e:
-        print(f"[ERROR] 上传过程中发生错误: {e}")
+        logger.error(f"上传过程中发生错误: {e}")
         return None
 
 # 定义提交表单的函数
@@ -342,9 +350,7 @@ def submit_course_form(form_data, cookies=None, custom_headers=None, course_url=
     try:
         # 只在调试模式下打印详细的开始信息
         if DEBUG:
-            print("\n" + "=" * 70)
-            print("正在发送表单提交请求...")
-            print("=" * 70)
+            logger.debug("正在发送表单提交请求...")
         
         # 发送请求，允许重定向
         response = requests.post(
@@ -358,59 +364,55 @@ def submit_course_form(form_data, cookies=None, custom_headers=None, course_url=
         # 只在调试模式下打印详细的请求和响应信息
         if DEBUG:
             # 打印请求信息
-            print("\n" + "=" * 70)
-            print("请求信息")
-            print("=" * 70)
-            print(f"请求URL: {url}")
-            print(f"请求方法: POST")
-            print(f"请求头:")
+            logger.debug("请求信息")
+            logger.debug(f"请求URL: {url}")
+            logger.debug(f"请求方法: POST")
+            logger.debug("请求头:")
             for key, value in headers.items():
-                print(f"  {key}: {value}")
+                logger.debug(f"  {key}: {value}")
             
-            print(f"\n表单数据:")
+            logger.debug("表单数据:")
             for key, value in form_data.items():
                 # 解析URL编码的JSON字符串
                 if isinstance(value, str) and (key == "formdata[a]" or key == "formdata[b]"):
                     try:
                         # 尝试解析JSON
                         parsed_value = json.loads(value)
-                        print(f"  {key}: {json.dumps(parsed_value, indent=4, ensure_ascii=False)}")
+                        logger.debug(f"  {key}: {json.dumps(parsed_value, indent=4, ensure_ascii=False)}")
                     except json.JSONDecodeError:
-                        print(f"  {key}: {value}")
+                        logger.debug(f"  {key}: {value}")
                 else:
-                    print(f"  {key}: {value}")
+                    logger.debug(f"  {key}: {value}")
             
             if cookies:
-                print(f"\nCookie:")
+                logger.debug("Cookie:")
                 if isinstance(cookies, dict):
                     for key, value in cookies.items():
-                        print(f"  {key}: {value}")
+                        logger.debug(f"  {key}: {value}")
                 elif isinstance(cookies, str):
-                    print(f"  {cookies}")
+                    logger.debug(f"  {cookies}")
             
             # 打印响应信息
-            print("\n" + "=" * 70)
-            print("响应信息")
-            print("=" * 70)
+            logger.debug("响应信息")
             
             # 打印所有响应历史
             if response.history:
-                print(f"\n重定向历史:")
+                logger.debug("重定向历史:")
                 for i, hist in enumerate(response.history):
-                    print(f"  [{i+1}] {hist.status_code} -> {hist.headers.get('location')}")
+                    logger.debug(f"  [{i+1}] {hist.status_code} -> {hist.headers.get('location')}")
             
             # 打印最终响应
-            print(f"\n最终响应:")
-            print(f"  状态码: {response.status_code}")
-            print(f"  响应URL: {response.url}")
-            print(f"  响应头:")
+            logger.debug("最终响应:")
+            logger.debug(f"  状态码: {response.status_code}")
+            logger.debug(f"  响应URL: {response.url}")
+            logger.debug("  响应头:")
             for key, value in response.headers.items():
-                print(f"    {key}: {value}")
+                logger.debug(f"    {key}: {value}")
         
         return response
         
     except requests.exceptions.RequestException as e:
-        print(f"\n请求失败: {e}")
+        logger.error(f"请求失败: {e}")
         return None
 
 # 定义解析命令行参数的函数
@@ -457,82 +459,48 @@ def main(cookie=COOKIE_STRING, image_path=IMAGE_PATH, form_data_b=FORM_DATA_B, d
     COURSE_URL = course_url or COURSE_URL
     DEFAULT_FORM_DATA = default_form_data or DEFAULT_FORM_DATA
     
-    print("=" * 70)
-    print("整合图片上传和表单提交功能")
-    print("=" * 70)
-    print("\n功能流程:")
-    print("1. 获取session cookie (s=部分)")
-    print("2. 获取OSS上传密钥")
-    print("3. 上传图片到OSS并获取file URL")
-    print("4. 构建表单数据并提交")
-    print("=" * 70)
-    
-    # 步骤1: 使用配置的remember_student Cookie
-    print("\n" + "=" * 50)
-    print("步骤1: 处理Cookie")
-    print("=" * 50)
+
     
     # 检查remember_student Cookie是否为空
     remember_cookie = COOKIE_STRING.strip()
     if not remember_cookie:
-        print("[ERROR] 错误：Cookie配置为空，请在脚本顶部设置有效的COOKIE_STRING或使用--cookie参数")
-        print("[INFO] 提示：只需要输入 remember_student_xxxxx 部分即可")
+        logger.error("错误：Cookie配置为空，请在脚本顶部设置有效的COOKIE_STRING或使用--cookie参数")
+        logger.info("提示：只需要输入 remember_student_xxxxx 部分即可")
         return
     
     # 检查是否已经包含s=部分
     if "s=" in remember_cookie and "remember_student" in remember_cookie:
         # 已经是完整的cookie字符串
         cookies = remember_cookie
-        print("[OK] 使用完整的Cookie字符串")
     else:
         # 只包含remember_student部分，需要获取s=部分
-        print(f"[OK] 使用提供的remember_student Cookie")
-        
-        # 步骤2: 获取s=部分的session cookie
-        print("\n" + "=" * 50)
-        print("步骤2: 获取session cookie (s=部分)")
-        print("=" * 50)
         s_cookie = get_session_cookie(remember_cookie, course_url=COURSE_URL)
         
         # 合并两部分cookie
         if s_cookie:
             cookies = f"{remember_cookie}; {s_cookie}"
-            print(f"[OK] 合并后的完整Cookie: {cookies}")
         else:
             # 如果获取不到s=部分，仍然使用remember_cookie尝试
             cookies = remember_cookie
-            print("[WARNING] 未获取到s=部分cookie，仅使用remember_student部分继续尝试")
-    print(f"[OK] 使用配置的Cookie")
+            logger.warning("未获取到s=部分cookie，仅使用remember_student部分继续尝试")
     
     # 步骤3: 获取OSS上传密钥
-    print("\n" + "=" * 50)
-    print("步骤3: 获取OSS上传密钥")
-    print("=" * 50)
     oss_config = get_oss_key(cookies, course_url=COURSE_URL)
     if not oss_config:
         return
     
     # 步骤4: 上传图片到OSS
-    print("\n" + "=" * 50)
-    print("步骤4: 上传图片到OSS")
-    print("=" * 50)
     image_path = IMAGE_PATH
     
     # 处理相对路径
     if not os.path.isabs(image_path):
         image_path = os.path.abspath(image_path)
     
-    print(f"[OK] 使用配置的图片路径: {image_path}")
     file_info = upload_image_to_oss(oss_config, image_path)
     
     if not file_info:
-        print("\n[ERROR] 图片上传失败，无法继续提交表单")
+        logger.error("图片上传失败，无法继续提交表单")
         return
-    
-    # 步骤5: 构建表单数据并提交
-    print("\n" + "=" * 50)
-    print("步骤5: 构建表单数据并提交")
-    print("=" * 50)
     
     # 生成随机的_tms值
     random_tms = str(random.randint(1, 500))
@@ -553,7 +521,6 @@ def main(cookie=COOKIE_STRING, image_path=IMAGE_PATH, form_data_b=FORM_DATA_B, d
     
     # 使用配置的formdata[b]值
     formdata_b = FORM_DATA_B
-    print(f"[OK] 使用配置的表单数据b: {formdata_b}")
     
     # 构建完整的表单数据
     form_data = DEFAULT_FORM_DATA.copy()
@@ -565,47 +532,32 @@ def main(cookie=COOKIE_STRING, image_path=IMAGE_PATH, form_data_b=FORM_DATA_B, d
     
     # 只在调试模式下打印详细配置
     if DEBUG:
-        print("\n" + "=" * 50)
-        print("当前表单配置")
-        print("=" * 50)
-        print(f"表单数据: {json.dumps(form_data, indent=2, ensure_ascii=False)}")
-        print(f"Cookie: {cookies}")
+        logger.debug("当前表单配置")
+        logger.debug(f"表单数据: {json.dumps(form_data, indent=2, ensure_ascii=False)}")
+        logger.debug(f"Cookie: {cookies}")
     
     # 直接提交表单（非交互式）
-    print("\n正在提交表单...")
     response = submit_course_form(form_data, cookies, course_url=COURSE_URL)
     
     # 处理响应
     if response:
-        print("\n" + "=" * 70)
-        print("操作完成")
-        print("=" * 70)
-        
         # 检查是否有重定向历史
         has_redirect = any(hist.status_code in [302, 301] for hist in response.history)
         
         if has_redirect:
             # 如果有重定向，获取最后一个重定向的location
             last_redirect = response.history[-1]
-            print(f"[OK] 表单提交成功，已重定向到: {last_redirect.headers.get('location')}")
         elif response.status_code == 200:
             # 检查响应内容是否包含失败信息
             response_text = response.text
             if "1分钟内只能提交1次" in response_text:
-                print("[ERROR] 表单提交失败：操作过于频繁，1分钟内只能提交1次")
+                logger.error("表单提交失败：操作过于频繁，1分钟内只能提交1次")
             elif "一天最多只能新增1份" in response_text or "明天再填吧" in response_text:
-                print("[ERROR] 表单提交失败：该资料今日已提交，一天最多只能新增1份")
+                logger.error("表单提交失败：该资料今日已提交，一天最多只能新增1份")
             elif "新增失败" in response_text:
-                print("[ERROR] 表单提交失败：操作失败，请稍后重试")
-            else:
-                print("[OK] 表单提交成功")
-        else:
-            print(f"表单提交完成，状态码: {response.status_code}")
+                logger.error("表单提交失败：操作失败，请稍后重试")
     else:
-        print("\n" + "=" * 70)
-        print("操作失败")
-        print("=" * 70)
-        print("[ERROR] 表单提交失败")
+        logger.error("表单提交失败")
 
 if __name__ == "__main__":
     # 解析命令行参数

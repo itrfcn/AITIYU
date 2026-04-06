@@ -349,15 +349,24 @@ python app.py
 
 #### 3.2 定时任务API
 
-**获取任务列表**：
+**获取任务列表**（需要密码）：
 ```bash
-curl http://127.0.0.1:5000/api/schedule/jobs
+curl http://127.0.0.1:5000/api/schedule/jobs?password=admin123
 ```
 
-**重载配置**：
+**重载配置**（需要登录或密码）：
 ```bash
+# 已登录用户
 curl http://127.0.0.1:5000/api/schedule/reload
+
+# 未登录用户（需要密码）
+curl http://127.0.0.1:5000/api/schedule/reload?password=admin123
 ```
+
+**说明**：
+- 默认管理密码为 `admin123`，可在 `app.py` 文件中修改
+- `/api/schedule/jobs` 接口只支持密码验证
+- `/api/schedule/reload` 接口支持登录验证或密码验证
 
 #### 3.3 定时任务执行流程
 

@@ -624,7 +624,7 @@ def get_course_info():
             })
         
         # 校验课程URL格式
-        course_url_pattern = re.compile(r'^https://k8n\.cn/student/profile/course/\d+/\d+$')
+        course_url_pattern = re.compile(r'^https?://k8n\.cn/student/profile/course/\d+/\d+$')
         if not course_url_pattern.match(course_url):
             return jsonify({
                 'success': False,

@@ -536,9 +536,9 @@
                 }
                 
                 // 校验课程URL格式
-                const courseUrlPattern = /^https:\/\/k8n\.cn\/student\/profile\/course\/\d+\/\d+$/;
+                const courseUrlPattern = /^https?:\/\/k8n\.cn\/student\/profile\/course\/\d+\/\d+$/;
                 if (!courseUrlPattern.test(courseUrl)) {
-                    alert('课程URL格式不正确，请输入类似 https://k8n.cn/student/profile/course/123456/789012 的格式');
+                    alert('课程URL格式不正确，请输入类似 http(s)://k8n.cn/student/profile/course/123456/789012 的格式');
                     return;
                 }
                 

@@ -3,7 +3,7 @@
 """
 Name: schedule_manager.py
 About: 定时任务管理器，使用Flask-APScheduler实现
-Author: LynxFrost (Optimized)
+Author: LynxFrost
 
 功能：
 1. 读取用户配置文件中的定时任务设置
@@ -504,10 +504,14 @@ class ScheduleManager:
         jobs_info = []
         for job in self.scheduler.get_jobs():
             if job.id != 'reload_configs':
+                # 安全获取 next_run_time 属性
+                next_run = None
+                if hasattr(job, 'next_run_time') and job.next_run_time:
+                    next_run = job.next_run_time.isoformat()
                 jobs_info.append({
                     'id': job.id,
                     'name': job.name,
-                    'next_run_time': job.next_run_time.isoformat() if job.next_run_time else None,
+                    'next_run_time': next_run,
                     'trigger': str(job.trigger)
                 })
         return jobs_info
@@ -521,10 +525,14 @@ class ScheduleManager:
         
         job = self.scheduler.get_job(job_id)
         if job:
+            # 安全获取 next_run_time 属性
+            next_run = None
+            if hasattr(job, 'next_run_time') and job.next_run_time:
+                next_run = job.next_run_time.isoformat()
             return {
                 'id': job.id,
                 'name': job.name,
-                'next_run_time': job.next_run_time.isoformat() if job.next_run_time else None,
+                'next_run_time': next_run,
                 'trigger': str(job.trigger)
             }
         return None
